@@ -1,28 +1,40 @@
 import { forwardRef } from 'react'
+import { cn } from '../../utils/cn'
 
 const Textarea = forwardRef(({ 
-  className = "", 
-  variant = "default",
+  className, 
+  error = false, 
+  label,
+  helperText,
+  rows = 3,
   ...props 
 }, ref) => {
-  const baseClasses = "block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-  
-  const variantClasses = {
-    default: "border-gray-300 text-gray-900 placeholder-gray-500",
-    error: "border-red-300 text-red-900 placeholder-red-500 focus:ring-red-500",
-    success: "border-green-300 text-green-900 placeholder-green-500 focus:ring-green-500"
-  }
-
   return (
-    <textarea
-      ref={ref}
-      className={`
-        ${baseClasses}
-        ${variantClasses[variant]}
-        ${className}
-      `}
-      {...props}
-    />
+    <div className="w-full">
+      {label && (
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {label}
+        </label>
+      )}
+      <textarea
+        ref={ref}
+        rows={rows}
+        className={cn(
+          'block w-full px-3 py-2 border rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm',
+          error 
+            ? 'border-danger-300 focus:ring-danger-500 focus:border-danger-500' 
+            : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500',
+          className
+        )}
+        {...props}
+      />
+      {helperText && !error && (
+        <p className="mt-1 text-sm text-gray-500">{helperText}</p>
+      )}
+      {error && (
+        <p className="mt-1 text-sm text-danger-600">{error}</p>
+      )}
+    </div>
   )
 })
 

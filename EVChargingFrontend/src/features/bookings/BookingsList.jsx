@@ -1,46 +1,188 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { useAuth } from '../../app/store.jsx'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import dayjs from 'dayjs'
 import { bookingsAPI } from '../../api/bookings'
+import { stationsAPI } from '../../api/stations'
 import { useToast } from '../../hooks/useToast'
+import { useAuth } from '../../app/store.jsx'
 import Card from '../../components/UI/Card'
 import Table from '../../components/UI/Table'
 import Button from '../../components/UI/Button'
-import Badge from '../../components/UI/Badge'
+import Input from '../../components/UI/Input'
 import Select from '../../components/UI/Select'
+import Modal from '../../components/UI/Modal'
+import Badge from '../../components/UI/Badge'
 import Pagination from '../../components/UI/Pagination'
-import { 
-  PlusIcon,
-  CalendarDaysIcon,
-  ClockIcon,
-  MapPinIcon,
-  UserIcon,
-  MagnifyingGlassIcon
-} from '@heroicons/react/24/outline'
+import { PlusIcon, PencilIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline'
+
+const bookingSchema = z.object({
+  stationId: z.string().min(1, 'Please select a station'),
+  reservationDate: z.string().min(1, 'Please select a date'),
+  reservationTime: z.string().min(1, 'Please select a time'),
+}).refine((data) => {
+  const reservationDateTime = dayjs(`${data.reservationDate} ${data.reservationTime}`)
+  const now = dayjs()
+  const maxDate = now.add(7, 'days')
+  return reservationDateTime.isAfter(now) && reservationDateTime.isBefore(maxDate)
+}, {
+  message: "Reservation must be in the future and within 7 days from now",
+  path: ["reservationDate"]
+})
 
 const BookingsList = () => {
-  const { user } = useAuth()
-  const { showToast } = useToast()
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingBooking, setEditingBooking] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
-  const pageSize = 10
+  const [filters, setFilters] = useState({
+    status: '',
+    stationId: '',
+    ownerNic: '',
+  })
+  const { user } = useAuth()
+  const { showSuccess, showError } = useToast()
+  const queryClient = useQueryClient()
+  const isBackoffice = user?.role === 'Backoffice'
 
-  const { data: bookings, isLoading } = useQuery({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(bookingSchema),
+  })
+
+  // Fetch stations for dropdown
+  const { data: stationsData } = useQuery({
+    queryKey: ['stations'],
+    queryFn: () => stationsAPI.getStations(),
+  })
+
+  // Fetch bookings
+  const { data: bookingsData, isLoading } = useQuery({
     queryKey: ['bookings', { 
       page: currentPage, 
-      size: pageSize, 
-      status: statusFilter,
-      search: searchTerm 
+      size: 10, 
+      ...filters,
+      ownerNic: user?.nic || filters.ownerNic 
     }],
-    queryFn: () => bookingsAPI.getBookings({ 
-      page: currentPage, 
-      size: pageSize, 
-      status: statusFilter,
-      search: searchTerm 
-    })
+    queryFn: () => {
+      // Use different API based on user role
+      if (user?.role === 'Backoffice' || user?.role === 'StationOperator') {
+        return bookingsAPI.getBookings({ 
+          page: currentPage, 
+          pageSize: 10, 
+          evOwnerNIC: filters.ownerNic,
+          stationId: filters.stationId,
+          status: filters.status
+        })
+      } else {
+        return bookingsAPI.getOwnerBookings(user?.nic || '', { 
+          page: currentPage, 
+          size: 10, 
+          ...filters 
+        })
+      }
+    },
   })
+
+  // Create booking mutation
+  const createMutation = useMutation({
+    mutationFn: bookingsAPI.createBooking,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] })
+      showSuccess('Success', 'Booking created successfully')
+      setIsModalOpen(false)
+      reset()
+    },
+    onError: (error) => {
+      showError('Error', error.response?.data?.message || 'Failed to create booking')
+    },
+  })
+
+  // Update booking mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => bookingsAPI.updateBooking(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] })
+      showSuccess('Success', 'Booking updated successfully')
+      setIsModalOpen(false)
+      setEditingBooking(null)
+      reset()
+    },
+    onError: (error) => {
+      showError('Error', error.response?.data?.message || 'Failed to update booking')
+    },
+  })
+
+  // Cancel booking mutation
+  const cancelMutation = useMutation({
+    mutationFn: bookingsAPI.cancelBooking,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] })
+      showSuccess('Success', 'Booking cancelled successfully')
+    },
+    onError: (error) => {
+      showError('Error', error.response?.data?.message || 'Failed to cancel booking')
+    },
+  })
+
+  // Approve booking mutation
+  const approveMutation = useMutation({
+    mutationFn: bookingsAPI.approveBooking,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] })
+      showSuccess('Success', 'Booking approved successfully')
+    },
+    onError: (error) => {
+      showError('Error', error.response?.data?.message || 'Failed to approve booking')
+    },
+  })
+
+  const handleCreate = () => {
+    setEditingBooking(null)
+    reset()
+    setIsModalOpen(true)
+  }
+
+  const handleEdit = (booking) => {
+    setEditingBooking(booking)
+    reset({
+      stationId: booking.stationId,
+      reservationDate: dayjs(booking.reservationDateTime).format('YYYY-MM-DD'),
+      reservationTime: dayjs(booking.reservationDateTime).format('HH:mm'),
+    })
+    setIsModalOpen(true)
+  }
+
+  const handleCancel = (bookingId) => {
+    if (window.confirm('Are you sure you want to cancel this booking?')) {
+      cancelMutation.mutate(bookingId)
+    }
+  }
+
+  const handleApprove = (bookingId) => {
+    if (window.confirm('Are you sure you want to approve this booking?')) {
+      approveMutation.mutate(bookingId)
+    }
+  }
+
+  const onSubmit = (data) => {
+    const reservationDateTime = dayjs(`${data.reservationDate} ${data.reservationTime}`).toISOString()
+    const bookingData = {
+      stationId: data.stationId,
+      reservationDateTime: reservationDateTime,
+    }
+
+    if (editingBooking) {
+      updateMutation.mutate({ id: editingBooking.id, data: bookingData })
+    } else {
+      createMutation.mutate(bookingData)
+    }
+  }
 
   const getStatusBadge = (status) => {
     const statusMap = {
@@ -52,195 +194,227 @@ const BookingsList = () => {
     return <Badge variant={statusMap[status] || 'default'}>{status}</Badge>
   }
 
-  const formatDateTime = (dateTime) => {
-    return new Date(dateTime).toLocaleString()
+  const canModify = (booking) => {
+    const reservationTime = dayjs(booking.reservationDateTime)
+    const now = dayjs()
+    const hoursUntilReservation = reservationTime.diff(now, 'hours')
+    return hoursUntilReservation >= 12
   }
 
-  const statusOptions = [
-    { value: '', label: 'All Statuses' },
-    { value: 'Pending', label: 'Pending' },
-    { value: 'Approved', label: 'Approved' },
-    { value: 'Completed', label: 'Completed' },
-    { value: 'Cancelled', label: 'Cancelled' }
-  ]
+  const stations = stationsData?.data?.items || []
+  const bookings = bookingsData?.data?.items || []
+  const totalPages = bookingsData?.data?.totalPages || 1
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage and view all charging station bookings
-          </p>
+          <p className="mt-1 text-sm text-gray-500">Manage charging station bookings</p>
         </div>
-        <Link to="/bookings/new">
-          <Button className="flex items-center space-x-2">
-            <PlusIcon className="h-4 w-4" />
-            <span>New Booking</span>
-          </Button>
-        </Link>
+        <Button onClick={handleCreate}>
+          <PlusIcon className="h-4 w-4 mr-2" />
+          New Booking
+        </Button>
       </div>
 
       {/* Filters */}
       <Card>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Search
-            </label>
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search bookings..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Status
-            </label>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
-              options={statusOptions}
-              value={statusFilter}
-              onChange={setStatusFilter}
-              placeholder="Filter by status"
+              label="Status"
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              options={[
+                { value: '', label: 'All Statuses' },
+                { value: 'Pending', label: 'Pending' },
+                { value: 'Approved', label: 'Approved' },
+                { value: 'Completed', label: 'Completed' },
+                { value: 'Cancelled', label: 'Cancelled' },
+              ]}
             />
-          </div>
-          <div className="flex items-end">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearchTerm('')
-                setStatusFilter('')
-                setCurrentPage(1)
-              }}
-              className="w-full"
-            >
-              Clear Filters
-            </Button>
+
+            <Select
+              label="Station"
+              value={filters.stationId}
+              onChange={(e) => setFilters({ ...filters, stationId: e.target.value })}
+              options={[
+                { value: '', label: 'All Stations' },
+                ...stations.map(station => ({
+                  value: station.id,
+                  label: station.name
+                }))
+              ]}
+            />
+
+            {isBackoffice && (
+              <Input
+                label="Owner NIC"
+                value={filters.ownerNic}
+                onChange={(e) => setFilters({ ...filters, ownerNic: e.target.value })}
+                placeholder="Search by owner NIC"
+              />
+            )}
           </div>
         </div>
       </Card>
 
-      {/* Bookings Table */}
       <Card>
-        {isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          </div>
-        ) : (
-          <>
+        <div className="p-6">
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+            </div>
+          ) : bookings.length === 0 ? (
+            <div className="p-6">
+              <Table.EmptyState
+                title="No bookings found"
+                description="Get started by creating a new booking."
+                action={
+                  <Button onClick={handleCreate}>
+                    <PlusIcon className="h-4 w-4 mr-2" />
+                    New Booking
+                  </Button>
+                }
+              />
+            </div>
+          ) : (
             <Table>
               <Table.Header>
                 <tr>
                   <Table.Head>Station</Table.Head>
-                  <Table.Head>Date & Time</Table.Head>
-                  <Table.Head>Duration</Table.Head>
-                  <Table.Head>Owner</Table.Head>
+                  <Table.Head>Reservation Time</Table.Head>
                   <Table.Head>Status</Table.Head>
+                  <Table.Head>Owner</Table.Head>
                   <Table.Head>Created</Table.Head>
                   <Table.Head>Actions</Table.Head>
                 </tr>
               </Table.Header>
               <Table.Body>
-                {bookings?.data?.map((booking) => (
-                  <Table.Row key={booking.id}>
-                    <Table.Cell>
-                      <div className="flex items-center space-x-2">
-                        <MapPinIcon className="h-4 w-4 text-gray-400" />
-                        <div>
-                          <p className="font-medium text-gray-900">{booking.stationName}</p>
-                          <p className="text-sm text-gray-500">{booking.stationLocation}</p>
+                {bookings.map((booking) => (
+                    <Table.Row key={booking.id}>
+                      <Table.Cell className="font-medium">
+                        {booking.stationName || 'N/A'}
+                      </Table.Cell>
+                      <Table.Cell>
+                        {dayjs(booking.reservationDateTime).format('MMM DD, YYYY HH:mm')}
+                      </Table.Cell>
+                      <Table.Cell>
+                        {getStatusBadge(booking.status)}
+                      </Table.Cell>
+                      <Table.Cell>{booking.evOwnerNIC}</Table.Cell>
+                      <Table.Cell>
+                        {dayjs(booking.createdAt).format('MMM DD, YYYY')}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex space-x-2">
+                          {canModify(booking) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(booking)}
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {booking.status === 'Pending' && (isBackoffice || user?.role === 'StationOperator') && (
+                            <Button
+                              variant="success"
+                              size="sm"
+                              onClick={() => handleApprove(booking.id)}
+                            >
+                              <CheckIcon className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canModify(booking) && booking.status !== 'Completed' && (
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={() => handleCancel(booking.id)}
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex items-center space-x-2">
-                        <CalendarDaysIcon className="h-4 w-4 text-gray-400" />
-                        <div>
-                          <p className="text-sm text-gray-900">
-                            {new Date(booking.reservationDateTime).toLocaleDateString()}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {new Date(booking.reservationDateTime).toLocaleTimeString()}
-                          </p>
-                        </div>
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex items-center space-x-2">
-                        <ClockIcon className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-900">{booking.duration} hours</span>
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex items-center space-x-2">
-                        <UserIcon className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-900">{booking.ownerName}</span>
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell>
-                      {getStatusBadge(booking.status)}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <span className="text-sm text-gray-500">
-                        {new Date(booking.createdAt).toLocaleDateString()}
-                      </span>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <Link
-                        to={`/bookings/${booking.id}`}
-                        className="text-primary-600 hover:text-primary-500 text-sm font-medium"
-                      >
-                        View Details
-                      </Link>
-                    </Table.Cell>
-                  </Table.Row>
+                      </Table.Cell>
+                    </Table.Row>
                 ))}
               </Table.Body>
             </Table>
+          )}
 
-            {bookings?.data?.length === 0 && (
-              <div className="text-center py-12">
-                <CalendarDaysIcon className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No bookings found</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  {searchTerm || statusFilter 
-                    ? 'Try adjusting your search criteria' 
-                    : 'Get started by creating a new booking'
-                  }
-                </p>
-                {!searchTerm && !statusFilter && (
-                  <div className="mt-6">
-                    <Link to="/bookings/new">
-                      <Button>
-                        <PlusIcon className="h-4 w-4 mr-2" />
-                        New Booking
-                      </Button>
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Pagination */}
-            {bookings?.pagination && bookings.pagination.totalPages > 1 && (
-              <div className="mt-6">
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={bookings.pagination.totalPages}
-                  onPageChange={setCurrentPage}
-                />
-              </div>
-            )}
-          </>
-        )}
+          {totalPages > 1 && (
+            <div className="mt-4">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          )}
+        </div>
       </Card>
+
+      {/* Booking Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingBooking ? 'Edit Booking' : 'Create Booking'}
+        size="md"
+      >
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <Select
+            label="Charging Station"
+            {...register('stationId')}
+            error={errors.stationId?.message}
+            options={stations.map(station => ({
+              value: station.id,
+              label: `${station.name} (${station.type}) - ${station.availableSlots}/${station.totalSlots} slots`
+            }))}
+            placeholder="Select a station"
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Reservation Date"
+              type="date"
+              {...register('reservationDate')}
+              error={errors.reservationDate?.message}
+              min={dayjs().format('YYYY-MM-DD')}
+              max={dayjs().add(7, 'days').format('YYYY-MM-DD')}
+            />
+            
+            <Input
+              label="Reservation Time"
+              type="time"
+              {...register('reservationTime')}
+              error={errors.reservationTime?.message}
+            />
+          </div>
+
+          <div className="text-sm text-gray-500">
+            <p>• Bookings must be made at least 12 hours in advance</p>
+            <p>• Reservations can only be made up to 7 days in advance</p>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={createMutation.isPending || updateMutation.isPending}
+            >
+              {editingBooking ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

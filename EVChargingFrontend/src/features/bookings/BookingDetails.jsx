@@ -1,51 +1,19 @@
-import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { useParams, Link } from 'react-router-dom'
 import { bookingsAPI } from '../../api/bookings'
-import { useToast } from '../../hooks/useToast'
 import Card from '../../components/UI/Card'
-import Button from '../../components/UI/Button'
 import Badge from '../../components/UI/Badge'
-import Modal from '../../components/UI/Modal'
-import { 
-  ArrowLeftIcon,
-  CalendarDaysIcon,
-  ClockIcon,
-  MapPinIcon,
-  UserIcon,
-  CheckCircleIcon,
-  XCircleIcon
-} from '@heroicons/react/24/outline'
+import Button from '../../components/UI/Button'
+import { ArrowLeftIcon, CalendarDaysIcon, MapPinIcon, UserIcon } from '@heroicons/react/24/outline'
 
 const BookingDetails = () => {
   const { id } = useParams()
-  const navigate = useNavigate()
-  const { showToast } = useToast()
-  const queryClient = useQueryClient()
-  const [showCancelModal, setShowCancelModal] = useState(false)
 
-  const { data: booking, isLoading } = useQuery({
+  const { data: bookingData, isLoading } = useQuery({
     queryKey: ['booking', id],
     queryFn: () => bookingsAPI.getBooking(id),
     enabled: !!id
   })
-
-  const updateBookingMutation = useMutation({
-    mutationFn: ({ id, status }) => bookingsAPI.updateBooking(id, { status }),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['booking', id])
-      queryClient.invalidateQueries(['bookings'])
-      showToast('Booking updated successfully', 'success')
-      setShowCancelModal(false)
-    },
-    onError: (error) => {
-      showToast(error.response?.data?.message || 'Failed to update booking', 'error')
-    }
-  })
-
-  const handleStatusUpdate = (status) => {
-    updateBookingMutation.mutate({ id, status })
-  }
 
   const getStatusBadge = (status) => {
     const statusMap = {
@@ -59,209 +27,143 @@ const BookingDetails = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
       </div>
     )
   }
 
-  if (!booking) {
+  if (!bookingData?.data) {
     return (
-      <div className="text-center py-12">
+      <div className="text-center py-8">
         <p className="text-gray-500">Booking not found</p>
-        <Button onClick={() => navigate('/bookings')} className="mt-4">
+        <Link to="/bookings" className="text-primary-600 hover:text-primary-500">
           Back to Bookings
-        </Button>
+        </Link>
       </div>
     )
   }
+
+  const booking = bookingData.data
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="outline"
-            onClick={() => navigate('/bookings')}
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeftIcon className="h-4 w-4" />
-            <span>Back</span>
+      <div className="flex items-center space-x-4">
+        <Link to="/bookings">
+          <Button variant="outline" size="sm">
+            <ArrowLeftIcon className="h-4 w-4 mr-2" />
+            Back
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Booking Details</h1>
-            <p className="text-sm text-gray-500">Booking ID: {booking.id}</p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-2">
-          {getStatusBadge(booking.status)}
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Booking Details</h1>
+          <p className="text-sm text-gray-500">ID: {booking.id}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Booking Information */}
-          <Card>
-            <Card.Header>
-              <Card.Title>Booking Information</Card.Title>
-            </Card.Header>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center space-x-3">
-                  <CalendarDaysIcon className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Reservation Date</p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(booking.reservationDateTime).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <ClockIcon className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Time</p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(booking.reservationDateTime).toLocaleTimeString()}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <MapPinIcon className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Station</p>
-                    <p className="text-sm text-gray-500">{booking.stationName}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <UserIcon className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Owner</p>
-                    <p className="text-sm text-gray-500">{booking.ownerName}</p>
-                  </div>
-                </div>
+        <Card className="lg:col-span-2">
+          <Card.Header>
+            <Card.Title>Booking Information</Card.Title>
+          </Card.Header>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-500">Status</label>
+              <div className="mt-1">
+                {getStatusBadge(booking.status)}
               </div>
             </div>
-          </Card>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Reservation Time</label>
+              <p className="text-sm text-gray-900">
+                {new Date(booking.reservationDateTime).toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Station</label>
+              <p className="text-sm text-gray-900">
+                {booking.stationName || 'N/A'}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Owner NIC</label>
+              <p className="text-sm text-gray-900">{booking.evOwnerNIC}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Booking Date</label>
+              <p className="text-sm text-gray-900">
+                {new Date(booking.bookingDate).toLocaleDateString()}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Created</label>
+              <p className="text-sm text-gray-900">
+                {new Date(booking.createdAt).toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Last Updated</label>
+              <p className="text-sm text-gray-900">
+                {new Date(booking.updatedAt).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </Card>
 
-          {/* Station Details */}
+        {/* QR Code */}
+        {booking.qrPayload && (
           <Card>
             <Card.Header>
-              <Card.Title>Station Details</Card.Title>
+              <Card.Title>QR Code</Card.Title>
             </Card.Header>
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-medium text-gray-900">Station Name</h4>
-                <p className="text-sm text-gray-500">{booking.stationName}</p>
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-gray-900">Location</h4>
-                <p className="text-sm text-gray-500">{booking.stationLocation}</p>
+            <div className="text-center">
+              <div className="bg-gray-100 p-4 rounded-lg">
+                <p className="text-sm text-gray-500">QR Code for verification</p>
+                <p className="text-xs text-gray-400 mt-2 break-all">{booking.qrPayload}</p>
               </div>
             </div>
           </Card>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Actions */}
-          <Card>
-            <Card.Header>
-              <Card.Title>Actions</Card.Title>
-            </Card.Header>
-            <div className="space-y-3">
-              {booking.status === 'Pending' && (
-                <>
-                  <Button
-                    onClick={() => handleStatusUpdate('Approved')}
-                    className="w-full flex items-center justify-center space-x-2"
-                    disabled={updateBookingMutation.isPending}
-                  >
-                    <CheckCircleIcon className="h-4 w-4" />
-                    <span>Approve</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowCancelModal(true)}
-                    className="w-full flex items-center justify-center space-x-2"
-                  >
-                    <XCircleIcon className="h-4 w-4" />
-                    <span>Cancel</span>
-                  </Button>
-                </>
-              )}
-              {booking.status === 'Approved' && (
-                <Button
-                  onClick={() => handleStatusUpdate('Completed')}
-                  className="w-full flex items-center justify-center space-x-2"
-                  disabled={updateBookingMutation.isPending}
-                >
-                  <CheckCircleIcon className="h-4 w-4" />
-                  <span>Mark Complete</span>
-                </Button>
-              )}
-            </div>
-          </Card>
-
-          {/* Booking Timeline */}
-          <Card>
-            <Card.Header>
-              <Card.Title>Timeline</Card.Title>
-            </Card.Header>
-            <div className="space-y-3">
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Booking Created</p>
-                  <p className="text-xs text-gray-500">
-                    {new Date(booking.createdAt).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              {booking.updatedAt && booking.updatedAt !== booking.createdAt && (
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Last Updated</p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(booking.updatedAt).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
+        )}
       </div>
 
-      {/* Cancel Modal */}
-      <Modal
-        isOpen={showCancelModal}
-        onClose={() => setShowCancelModal(false)}
-        title="Cancel Booking"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500">
-            Are you sure you want to cancel this booking? This action cannot be undone.
-          </p>
-          <div className="flex justify-end space-x-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowCancelModal(false)}
-            >
-              Keep Booking
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => handleStatusUpdate('Cancelled')}
-              disabled={updateBookingMutation.isPending}
-            >
-              Cancel Booking
-            </Button>
+      {/* Station Information */}
+      {booking.stationName && (
+        <Card>
+          <Card.Header>
+            <Card.Title>Station Information</Card.Title>
+          </Card.Header>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-500">Station Name</label>
+              <p className="text-sm text-gray-900">{booking.stationName}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Station Type</label>
+              <p className="text-sm text-gray-900">{booking.stationType || 'N/A'}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Location</label>
+              <p className="text-sm text-gray-900">{booking.stationAddress || 'N/A'}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Available Slots</label>
+              <p className="text-sm text-gray-900">
+                {booking.availableSlots || 'N/A'} / {booking.totalSlots || 'N/A'}
+              </p>
+            </div>
           </div>
-        </div>
-      </Modal>
+        </Card>
+      )}
+
+      {/* Actions */}
+      <div className="flex justify-center">
+        <Link to="/bookings">
+          <Button variant="outline">
+            <CalendarDaysIcon className="h-4 w-4 mr-2" />
+            View All Bookings
+          </Button>
+        </Link>
+      </div>
     </div>
   )
 }

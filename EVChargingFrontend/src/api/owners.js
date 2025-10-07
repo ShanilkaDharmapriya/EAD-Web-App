@@ -1,63 +1,39 @@
-import { api } from './axios'
+import api from './axios'
 
 export const ownersAPI = {
-  // Get all owners with pagination and filters
+  // Get all EV owners (paginated)
   getOwners: async (params = {}) => {
-    const response = await api.get('/owners', { params })
+    const response = await api.get('/api/evowner', { params })
     return response.data
   },
 
-  // Get a specific owner by NIC
+  // Get owner by NIC
   getOwner: async (nic) => {
-    const response = await api.get(`/owners/${nic}`)
+    const response = await api.get(`/api/evowner/${nic}`)
     return response.data
   },
 
-  // Create a new owner
-  createOwner: async (data) => {
-    const response = await api.post('/owners', data)
+  // Create new EV owner
+  createOwner: async (ownerData) => {
+    const response = await api.post('/api/evowner', ownerData)
     return response.data
   },
 
-  // Update an owner
-  updateOwner: async (nic, data) => {
-    const response = await api.put(`/owners/${nic}`, data)
+  // Update EV owner
+  updateOwner: async (nic, ownerData) => {
+    const response = await api.put(`/api/evowner/${nic}`, ownerData)
     return response.data
   },
 
-  // Delete an owner
-  deleteOwner: async (nic) => {
-    const response = await api.delete(`/owners/${nic}`)
+  // Deactivate EV owner
+  deactivateOwner: async (nic) => {
+    const response = await api.post(`/api/evowner/${nic}/deactivate`)
     return response.data
   },
 
-  // Get owner statistics
-  getOwnerStats: async (nic) => {
-    const response = await api.get(`/owners/${nic}/stats`)
+  // Reactivate EV owner (Backoffice only)
+  reactivateOwner: async (nic) => {
+    const response = await api.post(`/api/evowner/${nic}/reactivate`)
     return response.data
   },
-
-  // Get owner's booking history
-  getOwnerBookings: async (nic, params = {}) => {
-    const response = await api.get(`/owners/${nic}/bookings`, { params })
-    return response.data
-  },
-
-  // Verify owner NIC
-  verifyOwner: async (nic) => {
-    const response = await api.get(`/owners/${nic}/verify`)
-    return response.data
-  },
-
-  // Get owner's vehicle information
-  getOwnerVehicle: async (nic) => {
-    const response = await api.get(`/owners/${nic}/vehicle`)
-    return response.data
-  },
-
-  // Update owner's vehicle information
-  updateOwnerVehicle: async (nic, data) => {
-    const response = await api.put(`/owners/${nic}/vehicle`, data)
-    return response.data
-  }
 }

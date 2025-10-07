@@ -41,7 +41,9 @@ const LoginPage = () => {
         const user = { 
           username: data.data.username || userId, 
           role, 
-          nic: data.data.nic 
+          nic: data.data.nic,
+          userId: userId,
+          id: userId
         }
         login(user, token)
         showSuccess('Login Successful', 'Welcome to EV Charging Management')

@@ -1,71 +1,57 @@
-import { api } from './axios'
+import api from './axios'
 
 export const bookingsAPI = {
-  // Get all bookings with pagination and filters
+  // Get all bookings (for Backoffice/StationOperator)
   getBookings: async (params = {}) => {
-    const response = await api.get('/bookings', { params })
+    const response = await api.get('/api/booking', { params })
     return response.data
   },
 
-  // Get a specific booking by ID
+  // Get booking by ID
   getBooking: async (id) => {
-    const response = await api.get(`/bookings/${id}`)
+    const response = await api.get(`/api/booking/${id}`)
     return response.data
   },
 
-  // Create a new booking
-  createBooking: async (data) => {
-    const response = await api.post('/bookings', data)
+  // Get owner's bookings
+  getOwnerBookings: async (nic, params = {}) => {
+    const response = await api.get(`/api/booking/owner/${nic}`, { params })
     return response.data
   },
 
-  // Update a booking
-  updateBooking: async (id, data) => {
-    const response = await api.put(`/bookings/${id}`, data)
+  // Get dashboard stats for owner
+  getOwnerDashboard: async (nic) => {
+    const response = await api.get(`/api/booking/dashboard/${nic}`)
     return response.data
   },
 
-  // Delete a booking
-  deleteBooking: async (id) => {
-    const response = await api.delete(`/bookings/${id}`)
+  // Create new booking
+  createBooking: async (bookingData) => {
+    const response = await api.post('/api/booking', bookingData)
     return response.data
   },
 
-  // Get bookings for a specific owner
-  getOwnerBookings: async (ownerNic, params = {}) => {
-    const response = await api.get(`/bookings/owner/${ownerNic}`, { params })
+  // Update booking
+  updateBooking: async (id, bookingData) => {
+    const response = await api.put(`/api/booking/${id}`, bookingData)
     return response.data
   },
 
-  // Get booking statistics for an owner
-  getOwnerStats: async (ownerNic) => {
-    const response = await api.get(`/bookings/owner/${ownerNic}/stats`)
+  // Cancel booking
+  cancelBooking: async (id) => {
+    const response = await api.delete(`/api/booking/${id}`)
     return response.data
   },
 
-  // Get bookings for a specific station
-  getStationBookings: async (stationId, params = {}) => {
-    const response = await api.get(`/bookings/station/${stationId}`, { params })
+  // Approve booking
+  approveBooking: async (id) => {
+    const response = await api.post(`/api/booking/${id}/approve`)
     return response.data
   },
 
-  // Get available time slots for a station
-  getAvailableSlots: async (stationId, date) => {
-    const response = await api.get(`/bookings/station/${stationId}/available-slots`, {
-      params: { date }
-    })
+  // Complete booking via QR
+  completeBooking: async (qrPayload) => {
+    const response = await api.post('/api/booking/complete', { qrPayload })
     return response.data
   },
-
-  // Cancel a booking
-  cancelBooking: async (id, reason) => {
-    const response = await api.post(`/bookings/${id}/cancel`, { reason })
-    return response.data
-  },
-
-  // Complete a booking
-  completeBooking: async (id) => {
-    const response = await api.post(`/bookings/${id}/complete`)
-    return response.data
-  }
 }

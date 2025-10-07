@@ -88,7 +88,6 @@ const Dashboard = () => {
     return <Badge variant={statusMap[status] || 'default'}>{status}</Badge>
   }
 
-
   return (
     <div className="space-y-6">
       <div>
@@ -114,7 +113,6 @@ const Dashboard = () => {
           </Card>
         ))}
       </div>
-
 
       {/* Recent Bookings */}
       {bookingsData?.data && bookingsData.data.length > 0 && (

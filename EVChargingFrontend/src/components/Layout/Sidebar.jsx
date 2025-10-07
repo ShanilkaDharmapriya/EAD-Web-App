@@ -4,7 +4,8 @@ import {
   UsersIcon,
   UserGroupIcon,
   BuildingOfficeIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../app/store.jsx'
 

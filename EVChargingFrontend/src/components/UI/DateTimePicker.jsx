@@ -1,54 +1,61 @@
 import { forwardRef } from 'react'
-import { CalendarDaysIcon } from '@heroicons/react/24/outline'
+import dayjs from 'dayjs'
+import { cn } from '../../utils/cn'
 
 const DateTimePicker = forwardRef(({ 
-  value, 
-  onChange, 
-  placeholder = "Select date and time",
+  className, 
+  error = false, 
+  label,
+  helperText,
+  value,
+  onChange,
   minDate,
   maxDate,
-  className = "",
   ...props 
 }, ref) => {
+  const formatValue = (val) => {
+    if (!val) return ''
+    return dayjs(val).format('YYYY-MM-DDTHH:mm')
+  }
+
   const handleChange = (e) => {
-    const dateTimeValue = e.target.value
-    onChange?.(dateTimeValue)
-  }
-
-  const getMinDate = () => {
-    if (minDate) {
-      return minDate.toISOString().slice(0, 16)
+    const newValue = e.target.value
+    if (newValue) {
+      onChange(dayjs(newValue).toDate())
+    } else {
+      onChange(null)
     }
-    return undefined
-  }
-
-  const getMaxDate = () => {
-    if (maxDate) {
-      return maxDate.toISOString().slice(0, 16)
-    }
-    return undefined
   }
 
   return (
-    <div className="relative">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <CalendarDaysIcon className="h-4 w-4 text-gray-400" />
-      </div>
+    <div className="w-full">
+      {label && (
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {label}
+        </label>
+      )}
       <input
         ref={ref}
         type="datetime-local"
-        value={value || ''}
+        value={formatValue(value)}
         onChange={handleChange}
-        min={getMinDate()}
-        max={getMaxDate()}
-        className={`
-          block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md 
-          focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
-          ${className}
-        `}
-        placeholder={placeholder}
+        min={minDate ? dayjs(minDate).format('YYYY-MM-DDTHH:mm') : undefined}
+        max={maxDate ? dayjs(maxDate).format('YYYY-MM-DDTHH:mm') : undefined}
+        className={cn(
+          'block w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm',
+          error 
+            ? 'border-danger-300 focus:ring-danger-500 focus:border-danger-500' 
+            : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500',
+          className
+        )}
         {...props}
       />
+      {helperText && !error && (
+        <p className="mt-1 text-sm text-gray-500">{helperText}</p>
+      )}
+      {error && (
+        <p className="mt-1 text-sm text-danger-600">{error}</p>
+      )}
     </div>
   )
 })
