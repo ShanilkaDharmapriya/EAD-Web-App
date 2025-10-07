@@ -8,6 +8,7 @@ import { bookingsAPI } from '../../api/bookings'
 import { stationsAPI } from '../../api/stations'
 import { useToast } from '../../hooks/useToast'
 import { useAuth } from '../../app/store.jsx'
+import { getErrorMessage } from '../../utils/errors'
 import Card from '../../components/UI/Card'
 import Table from '../../components/UI/Table'
 import Button from '../../components/UI/Button'
@@ -16,6 +17,8 @@ import Select from '../../components/UI/Select'
 import Modal from '../../components/UI/Modal'
 import Badge from '../../components/UI/Badge'
 import Pagination from '../../components/UI/Pagination'
+import LoadingButton from '../../components/ui/LoadingButton'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { PlusIcon, PencilIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline'
 
 const bookingSchema = z.object({
@@ -36,6 +39,10 @@ const BookingsList = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingBooking, setEditingBooking] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [loadingId, setLoadingId] = useState(null)
+  const [cancelingId, setCancelingId] = useState(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [confirmFor, setConfirmFor] = useState(null)
   const [filters, setFilters] = useState({
     status: '',
     stationId: '',
@@ -126,7 +133,7 @@ const BookingsList = () => {
       showSuccess('Success', 'Booking cancelled successfully')
     },
     onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to cancel booking')
+      showError('Error', getErrorMessage(error))
     },
   })
 
@@ -158,9 +165,14 @@ const BookingsList = () => {
     setIsModalOpen(true)
   }
 
-  const handleCancel = (bookingId) => {
-    if (window.confirm('Are you sure you want to cancel this booking?')) {
-      cancelMutation.mutate(bookingId)
+  const handleCancel = async (bookingId) => {
+    setCancelingId(bookingId)
+    try {
+      await cancelMutation.mutateAsync(bookingId)
+    } finally {
+      setCancelingId(null)
+      setDialogOpen(false)
+      setConfirmFor(null)
     }
   }
 
@@ -194,11 +206,8 @@ const BookingsList = () => {
     return <Badge variant={statusMap[status] || 'default'}>{status}</Badge>
   }
 
-  const canModify = (booking) => {
-    const reservationTime = dayjs(booking.reservationDateTime)
-    const now = dayjs()
-    const hoursUntilReservation = reservationTime.diff(now, 'hours')
-    return hoursUntilReservation >= 12
+  const isLocked = (reservationISO) => {
+    return dayjs(reservationISO).diff(dayjs(), 'hour') < 12
   }
 
   const stations = stationsData?.data?.items || []
@@ -309,33 +318,44 @@ const BookingsList = () => {
                       </Table.Cell>
                       <Table.Cell>
                         <div className="flex space-x-2">
-                          {canModify(booking) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEdit(booking)}
-                            >
-                              <PencilIcon className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {booking.status === 'Pending' && (isBackoffice || user?.role === 'StationOperator') && (
-                            <Button
-                              variant="success"
-                              size="sm"
-                              onClick={() => handleApprove(booking.id)}
-                            >
-                              <CheckIcon className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {canModify(booking) && booking.status !== 'Completed' && (
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() => handleCancel(booking.id)}
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                            </Button>
-                          )}
+                          {(() => {
+                            const locked = isLocked(booking.reservationDateTime)
+                            return (
+                              <>
+                                <LoadingButton
+                                  disabled={locked || loadingId === booking.id}
+                                  aria-disabled={locked}
+                                  title={locked ? "Cannot modify within 12 hours of reservation." : "Modify booking"}
+                                  className="bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                  size="sm"
+                                  onClick={() => handleEdit(booking)}
+                                >
+                                  <PencilIcon className="h-4 w-4" />
+                                </LoadingButton>
+                                {booking.status === 'Pending' && (isBackoffice || user?.role === 'StationOperator') && (
+                                  <LoadingButton
+                                    variant="success"
+                                    size="sm"
+                                    loading={loadingId === booking.id}
+                                    onClick={() => handleApprove(booking.id)}
+                                  >
+                                    <CheckIcon className="h-4 w-4" />
+                                  </LoadingButton>
+                                )}
+                                {!locked && booking.status !== 'Completed' && (
+                                  <LoadingButton
+                                    variant="danger"
+                                    size="sm"
+                                    loading={cancelingId === booking.id}
+                                    title="Cancel booking"
+                                    onClick={() => { setConfirmFor(booking.id); setDialogOpen(true) }}
+                                  >
+                                    <TrashIcon className="h-4 w-4" />
+                                  </LoadingButton>
+                                )}
+                              </>
+                            )
+                          })()}
                         </div>
                       </Table.Cell>
                     </Table.Row>
@@ -415,6 +435,20 @@ const BookingsList = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Cancel Confirmation Dialog */}
+      <ConfirmDialog
+        title="Cancel Booking"
+        message="Are you sure you want to cancel this booking?"
+        confirmText="Cancel Booking"
+        isOpen={dialogOpen}
+        onCancel={() => { setDialogOpen(false); setConfirmFor(null) }}
+        onConfirm={() => {
+          if (confirmFor) {
+            handleCancel(confirmFor)
+          }
+        }}
+      />
     </div>
   )
 }

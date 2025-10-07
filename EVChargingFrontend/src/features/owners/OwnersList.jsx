@@ -6,6 +6,8 @@ import { z } from 'zod'
 import { ownersAPI } from '../../api/owners'
 import { useToast } from '../../hooks/useToast'
 import { useAuth } from '../../app/store.jsx'
+import { SL_NIC_REGEX } from '../../utils/nic'
+import { getErrorMessage } from '../../utils/errors'
 import Card from '../../components/UI/Card'
 import Table from '../../components/UI/Table'
 import Button from '../../components/UI/Button'
@@ -16,7 +18,7 @@ import Pagination from '../../components/UI/Pagination'
 import { PlusIcon, PencilIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 
 const ownerSchema = z.object({
-  nic: z.string().min(10, 'NIC must be at least 10 characters').max(12, 'NIC must be less than 12 characters'),
+  nic: z.string().regex(SL_NIC_REGEX, 'Enter a valid Sri Lankan NIC (9 digits + V/X or 12 digits).'),
   name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),
   email: z.string().email('Invalid email format').max(100, 'Email must be less than 100 characters'),
   phone: z.string().min(10, 'Phone must be at least 10 characters').max(15, 'Phone must be less than 15 characters'),
@@ -58,7 +60,7 @@ const OwnersList = () => {
       reset()
     },
     onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to create EV owner')
+      showError('Error', getErrorMessage(error))
     },
   })
 
@@ -73,7 +75,7 @@ const OwnersList = () => {
       reset()
     },
     onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to update EV owner')
+      showError('Error', getErrorMessage(error))
     },
   })
 
@@ -85,7 +87,7 @@ const OwnersList = () => {
       showSuccess('Success', 'EV Owner deactivated successfully')
     },
     onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to deactivate EV owner')
+      showError('Error', getErrorMessage(error))
     },
   })
 
@@ -97,7 +99,7 @@ const OwnersList = () => {
       showSuccess('Success', 'EV Owner reactivated successfully')
     },
     onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to reactivate EV owner')
+      showError('Error', getErrorMessage(error))
     },
   })
 
