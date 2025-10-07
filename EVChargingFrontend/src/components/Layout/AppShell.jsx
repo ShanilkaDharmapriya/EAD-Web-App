@@ -1,37 +1,21 @@
+import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
-import Toast from '../UI/Toast'
-import { useToast } from '../../hooks/useToast'
 
 const AppShell = () => {
-  const { toasts, removeToast } = useToast()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="flex">
-        <Sidebar />
-        <div className="flex-1 flex flex-col">
-          <Topbar />
-          <main className="flex-1 p-6">
+    <div className="min-h-screen bg-slate-50">
+      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      <div className="lg:pl-64">
+        <Topbar onMobileMenuToggle={() => setSidebarOpen(true)} />
+        <main className="pt-16 min-h-screen">
+          <div className="relative bg-slate-50">
             <Outlet />
-          </main>
-        </div>
-      </div>
-      
-      {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-50 space-y-2">
-        {toasts.map((toast) => (
-          <Toast
-            key={toast.id}
-            isVisible={toast.isVisible}
-            onClose={() => removeToast(toast.id)}
-            type={toast.type}
-            title={toast.title}
-            message={toast.message}
-            duration={toast.duration}
-          />
-        ))}
+          </div>
+        </main>
       </div>
     </div>
   )

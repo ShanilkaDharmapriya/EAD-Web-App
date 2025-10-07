@@ -1,50 +1,57 @@
-import { Fragment, useEffect } from 'react'
+import React, { Fragment } from 'react'
 import { Transition } from '@headlessui/react'
 import { 
   CheckCircleIcon, 
   ExclamationTriangleIcon, 
-  InformationCircleIcon,
+  InformationCircleIcon, 
   XCircleIcon,
   XMarkIcon 
 } from '@heroicons/react/24/outline'
 
 const Toast = ({ 
-  isVisible, 
+  isOpen, 
   onClose, 
-  type = 'success', 
   title, 
   message, 
+  type = 'info',
   duration = 5000 
 }) => {
-  useEffect(() => {
-    if (isVisible && duration > 0) {
-      const timer = setTimeout(() => {
-        onClose()
-      }, duration)
-
-      return () => clearTimeout(timer)
-    }
-  }, [isVisible, duration, onClose])
-
   const icons = {
     success: CheckCircleIcon,
-    error: XCircleIcon,
     warning: ExclamationTriangleIcon,
+    error: XCircleIcon,
     info: InformationCircleIcon
   }
 
   const colors = {
-    success: 'text-success-600 bg-success-50 border-success-200',
-    error: 'text-danger-600 bg-danger-50 border-danger-200',
-    warning: 'text-warning-600 bg-warning-50 border-warning-200',
-    info: 'text-primary-600 bg-primary-50 border-primary-200'
+    success: 'text-green-400',
+    warning: 'text-yellow-400',
+    error: 'text-red-400',
+    info: 'text-blue-400'
+  }
+
+  const bgColors = {
+    success: 'bg-green-50',
+    warning: 'bg-yellow-50',
+    error: 'bg-red-50',
+    info: 'bg-blue-50'
   }
 
   const Icon = icons[type]
 
+  // Auto close after duration
+  React.useEffect(() => {
+    if (isOpen && duration > 0) {
+      const timer = setTimeout(() => {
+        onClose()
+      }, duration)
+      return () => clearTimeout(timer)
+    }
+  }, [isOpen, duration, onClose])
+
   return (
     <Transition
-      show={isVisible}
+      show={isOpen}
       as={Fragment}
       enter="transform ease-out duration-300 transition"
       enterFrom="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
@@ -54,25 +61,28 @@ const Toast = ({
       leaveTo="opacity-0"
     >
       <div className="pointer-events-auto w-full max-w-sm overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5">
-        <div className={`p-4 border-l-4 ${colors[type]}`}>
+        <div className={`p-4 ${bgColors[type]}`}>
           <div className="flex items-start">
             <div className="flex-shrink-0">
-              <Icon className="h-5 w-5" />
+              <Icon className={`h-6 w-6 ${colors[type]}`} />
             </div>
-            <div className="ml-3 w-0 flex-1">
+            <div className="ml-3 w-0 flex-1 pt-0.5">
               {title && (
-                <p className="text-sm font-medium">{title}</p>
+                <p className="text-sm font-medium text-gray-900">{title}</p>
               )}
               {message && (
-                <p className={`text-sm ${title ? 'mt-1' : ''}`}>{message}</p>
+                <p className={`text-sm ${title ? 'mt-1' : ''} text-gray-500`}>
+                  {message}
+                </p>
               )}
             </div>
             <div className="ml-4 flex flex-shrink-0">
               <button
                 type="button"
-                className="inline-flex rounded-md text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="inline-flex rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                 onClick={onClose}
               >
+                <span className="sr-only">Close</span>
                 <XMarkIcon className="h-5 w-5" />
               </button>
             </div>
