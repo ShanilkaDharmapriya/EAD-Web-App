@@ -211,7 +211,8 @@ const BookingsList = () => {
   }
 
   const stations = stationsData?.data?.items || []
-  const bookings = bookingsData?.data?.items || []
+  // For EV Owner bookings, data is directly an array, not wrapped in items
+  const bookings = bookingsData?.data?.items || bookingsData?.data || []
   const totalPages = bookingsData?.data?.totalPages || 1
 
   return (
