@@ -1,60 +1,158 @@
-import { NavLink } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../../app/store.jsx'
 import { 
   HomeIcon,
   UsersIcon,
   UserGroupIcon,
   BuildingOfficeIcon,
   CalendarDaysIcon,
-  Cog6ToothIcon
+  ChartBarIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline'
-import { useAuth } from '../../app/store.jsx'
 
-const Sidebar = () => {
+const navigation = [
+  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, roles: ['Backoffice', 'StationOperator', 'EVOwner'] },
+  { name: 'Users', href: '/users', icon: UsersIcon, roles: ['Backoffice'] },
+  { name: 'EV Owners', href: '/owners', icon: UserGroupIcon, roles: ['Backoffice'] },
+  { name: 'Charging Stations', href: '/stations', icon: BuildingOfficeIcon, roles: ['Backoffice', 'StationOperator'] },
+  { name: 'Bookings', href: '/bookings', icon: CalendarDaysIcon, roles: ['Backoffice', 'StationOperator', 'EVOwner'] },
+  { name: 'Owner Dashboard', href: '/owner-dashboard', icon: ChartBarIcon, roles: ['EVOwner'] },
+]
+
+const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   const { user } = useAuth()
-  const isBackoffice = user?.role === 'Backoffice'
-  const isStationOperator = user?.role === 'StationOperator'
+  const location = useLocation()
 
-  const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, current: false },
-    ...(isBackoffice ? [
-      { name: 'Users', href: '/users', icon: UsersIcon, current: false },
-    ] : []),
-    { name: 'EV Owners', href: '/owners', icon: UserGroupIcon, current: false },
-    { name: 'Stations', href: '/stations', icon: BuildingOfficeIcon, current: false },
-    { name: 'Bookings', href: '/bookings', icon: CalendarDaysIcon, current: false },
-  ]
+  const filteredNavigation = navigation.filter(item => 
+    item.roles.includes(user?.role)
+  )
 
   return (
-    <div className="hidden md:flex md:w-64 md:flex-col">
-      <div className="flex flex-col flex-grow pt-5 bg-white overflow-y-auto border-r border-gray-200">
-        <div className="flex items-center flex-shrink-0 px-4">
-          <h1 className="text-xl font-bold text-gray-900">EV Charging</h1>
-        </div>
-        <div className="mt-5 flex-grow flex flex-col">
-          <nav className="flex-1 px-2 space-y-1">
-            {navigation.map((item) => (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className={({ isActive }) =>
-                  `group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
+    <>
+      {/* Mobile sidebar */}
+      <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+        <div className="relative flex w-80 flex-col bg-white border-r-2 border-slate-200 shadow-lg">
+          <div className="relative flex h-16 items-center justify-between px-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+                  <span className="text-white font-bold text-sm">EV</span>
+                </div>
+              </div>
+              <div className="ml-3">
+                <h1 className="text-sm font-semibold text-slate-900">Charging Admin</h1>
+                <p className="text-xs text-slate-500">Management System</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="text-slate-600 hover:text-slate-800 hover:bg-white/70 rounded-xl p-2 transition-all duration-200 ease-out"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <XMarkIcon className="h-6 w-6" />
+            </button>
+          </div>
+          <nav className="relative flex-1 px-4 py-6 space-y-2">
+            {filteredNavigation.map((item, index) => {
+              const isActive = location.pathname === item.href
+              const accentColors = [
+                { bg: 'bg-blue-500', text: 'text-blue-600' },
+                { bg: 'bg-emerald-500', text: 'text-emerald-600' },
+                { bg: 'bg-indigo-500', text: 'text-indigo-600' },
+                { bg: 'bg-violet-500', text: 'text-violet-600' }
+              ]
+              const colors = accentColors[index % accentColors.length]
+              
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all ${
                     isActive
-                      ? 'bg-primary-100 text-primary-900'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`
-                }
-              >
-                <item.icon
-                  className="mr-3 flex-shrink-0 h-5 w-5"
-                  aria-hidden="true"
-                />
-                {item.name}
-              </NavLink>
-            ))}
+                      ? 'bg-blue-50 border border-blue-200 shadow-sm'
+                      : 'text-slate-700 hover:bg-slate-50 hover:shadow-sm'
+                  }`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <div className={`p-2 rounded-lg transition-all duration-200 ${
+                    isActive 
+                      ? `${colors.bg} text-white shadow-sm` 
+                      : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
+                  }`}>
+                    <item.icon className="h-5 w-5" />
+                  </div>
+                  <span className={`${
+                    isActive ? `${colors.text} font-semibold` : 'text-slate-700'
+                  }`}>{item.name}</span>
+                </Link>
+              )
+            })}
           </nav>
         </div>
       </div>
-    </div>
+
+      {/* Desktop sidebar */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
+        <div className="relative flex grow flex-col gap-y-6 overflow-y-auto bg-white border-r-2 border-slate-200 shadow-lg">
+          <div className="relative flex h-16 shrink-0 items-center px-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+                  <span className="text-white font-bold text-sm">EV</span>
+                </div>
+              </div>
+              <div className="ml-3">
+                <h1 className="text-sm font-semibold text-slate-900">Charging Admin</h1>
+                <p className="text-xs text-slate-500">Management System</p>
+              </div>
+            </div>
+          </div>
+          <nav className="relative flex flex-1 flex-col px-4">
+            <ul role="list" className="flex flex-1 flex-col gap-y-6">
+              <li>
+                <ul role="list" className="space-y-2">
+                  {filteredNavigation.map((item, index) => {
+                    const isActive = location.pathname === item.href
+                    const accentColors = [
+                      { bg: 'bg-blue-500', text: 'text-blue-600' },
+                      { bg: 'bg-emerald-500', text: 'text-emerald-600' },
+                      { bg: 'bg-indigo-500', text: 'text-indigo-600' },
+                      { bg: 'bg-violet-500', text: 'text-violet-600' }
+                    ]
+                    const colors = accentColors[index % accentColors.length]
+                    
+                    return (
+                      <li key={item.name}>
+                        <Link
+                          to={item.href}
+                          className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all ${
+                            isActive
+                              ? 'bg-blue-50 border border-blue-200 shadow-sm'
+                              : 'text-slate-700 hover:bg-slate-50 hover:shadow-sm'
+                          }`}
+                        >
+                          <div className={`p-2 rounded-lg transition-all duration-200 ${
+                            isActive 
+                              ? `${colors.bg} text-white shadow-sm` 
+                              : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
+                          }`}>
+                            <item.icon className="h-5 w-5" />
+                          </div>
+                          <span className={`${
+                            isActive ? `${colors.text} font-semibold` : 'text-slate-700'
+                          }`}>{item.name}</span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </>
   )
 }
 

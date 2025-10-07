@@ -1,0 +1,231 @@
+{
+  "audit_metadata": {
+    "timestamp": "2025-01-07T12:23:00Z",
+    "project": "SE4040 EV Charging Booking System Frontend",
+    "auditor": "Senior QA Engineer",
+    "scope": "React + Tailwind Frontend Audit"
+  },
+  "requirements_analysis": {
+    "W-UM-1": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/components/Layout/Sidebar.jsx",
+          "lines": "14-15",
+          "code": "const isBackoffice = user?.role === 'Backoffice'\nconst isStationOperator = user?.role === 'StationOperator'"
+        },
+        {
+          "file": "src/components/Layout/Topbar.jsx", 
+          "lines": "52",
+          "code": "({user?.role})"
+        }
+      ],
+      "notes": "Role labels visible in UI, role-based navigation implemented"
+    },
+    "W-UM-2": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/routes/AppRoutes.jsx",
+          "lines": "38-42",
+          "code": "<Route path=\"users\" element={\n  <RoleGuard allowedRoles={['Backoffice']}>\n    <UsersList />\n  </RoleGuard>\n} />"
+        },
+        {
+          "file": "src/components/Layout/Sidebar.jsx",
+          "lines": "19-21",
+          "code": "...(isBackoffice ? [\n  { name: 'Users', href: '/users', icon: UsersIcon, current: false },\n] : [])"
+        }
+      ],
+      "notes": "Users route protected with RoleGuard, conditional menu items"
+    },
+    "W-EVO-1": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/features/owners/OwnersList.jsx",
+          "lines": "19",
+          "code": "nic: z.string().min(10, 'NIC must be at least 10 characters').max(12, 'NIC must be less than 12 characters')"
+        },
+        {
+          "file": "src/features/owners/OwnersList.jsx",
+          "lines": "267",
+          "code": "disabled={!!editingOwner}"
+        },
+        {
+          "file": "src/features/owners/OwnerDetails.jsx",
+          "lines": "16",
+          "code": "queryFn: () => ownersAPI.getOwner(nic)"
+        }
+      ],
+      "notes": "NIC field validation, forms, list/table, create/edit/delete operations"
+    },
+    "W-EVO-2": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/features/owners/OwnersList.jsx",
+          "lines": "204-208",
+          "code": "<Badge variant={owner.isActive ? 'success' : 'danger'}>\n  {owner.isActive ? 'Active' : 'Inactive'}\n</Badge>"
+        },
+        {
+          "file": "src/features/owners/OwnersList.jsx",
+          "lines": "221-237",
+          "code": "{owner.isActive ? (\n  <Button variant=\"danger\" size=\"sm\" onClick={() => handleDeactivate(owner.nic)}>\n    <TrashIcon className=\"h-4 w-4\" />\n  </Button>\n) : isBackoffice ? (\n  <Button variant=\"success\" size=\"sm\" onClick={() => handleReactivate(owner.nic)}>\n    <ArrowPathIcon className=\"h-4 w-4\" />\n  </Button>\n) : null}"
+        }
+      ],
+      "notes": "Status display with badges, deactivate/reactivate buttons"
+    },
+    "W-CS-1": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/features/stations/StationsList.jsx",
+          "lines": "19-26",
+          "code": "const stationSchema = z.object({\n  name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),\n  type: z.enum(['AC', 'DC'], 'Please select a valid type'),\n  totalSlots: z.number().min(1, 'Total slots must be at least 1').max(50, 'Total slots must be less than 50'),\n  latitude: z.number().min(-90, 'Invalid latitude').max(90, 'Invalid latitude'),\n  longitude: z.number().min(-180, 'Invalid longitude').max(180, 'Invalid longitude'),\n  address: z.string().min(10, 'Address must be at least 10 characters').max(200, 'Address must be less than 200 characters'),\n})"
+        },
+        {
+          "file": "src/features/stations/StationsList.jsx",
+          "lines": "280-325",
+          "code": "Select options with AC/DC types, location fields, slots management"
+        }
+      ],
+      "notes": "Form with AC/DC selector, location fields, slots management"
+    },
+    "W-CS-2": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/features/stations/StationsList.jsx",
+          "lines": "105-121",
+          "code": "const handleEdit = (station) => {\n  setEditingStation(station)\n  reset({\n    name: station.name,\n    type: station.type,\n    totalSlots: station.totalSlots,\n    latitude: station.location.latitude,\n    longitude: station.location.longitude,\n    address: station.location.address,\n  })\n  setIsModalOpen(true)\n}"
+        },
+        {
+          "file": "src/features/stations/StationsList.jsx",
+          "lines": "345-356",
+          "code": "StationScheduleEditor component integration"
+        }
+      ],
+      "notes": "Edit station form, schedule editor with time slots"
+    },
+    "W-CS-3": {
+      "status": "Ambiguous",
+      "evidence": [
+        {
+          "file": "src/features/stations/StationsList.jsx",
+          "lines": "90-97",
+          "code": "onError: (error) => {\n  if (error.response?.status === 409) {\n    showError('Cannot Deactivate', 'This station has active future bookings and cannot be deactivated')\n  } else {\n    showError('Error', error.response?.data?.message || 'Failed to deactivate charging station')\n  }\n}"
+        }
+      ],
+      "notes": "UI shows 409 error message, but no client-side validation"
+    },
+    "W-BK-1": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/features/bookings/BookingsList.jsx",
+          "lines": "25-33",
+          "code": "}).refine((data) => {\n  const reservationDateTime = dayjs(`${data.reservationDate} ${data.reservationTime}`)\n  const now = dayjs()\n  const maxDate = now.add(7, 'days')\n  return reservationDateTime.isAfter(now) && reservationDateTime.isBefore(maxDate)\n}, {\n  message: \"Reservation must be in the future and within 7 days from now\",\n  path: [\"reservationDate\"]\n})"
+        },
+        {
+          "file": "src/features/bookings/BookingsList.jsx",
+          "lines": "384-385",
+          "code": "min={dayjs().format('YYYY-MM-DD')}\nmax={dayjs().add(7, 'days').format('YYYY-MM-DD')}"
+        }
+      ],
+      "notes": "Date picker max constraint, validation schema"
+    },
+    "W-BK-2": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/features/bookings/BookingsList.jsx",
+          "lines": "197-202",
+          "code": "const canModify = (booking) => {\n  const reservationTime = dayjs(booking.reservationDateTime)\n  const now = dayjs()\n  const hoursUntilReservation = reservationTime.diff(now, 'hours')\n  return hoursUntilReservation >= 12\n}"
+        },
+        {
+          "file": "src/features/bookings/BookingsList.jsx",
+          "lines": "312-320",
+          "code": "{canModify(booking) && (\n  <Button variant=\"outline\" size=\"sm\" onClick={() => handleEdit(booking)}>\n    <PencilIcon className=\"h-4 w-4\" />\n  </Button>\n)}"
+        }
+      ],
+      "notes": "canModify function checks 12-hour rule"
+    },
+    "W-BK-3": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/features/bookings/BookingsList.jsx",
+          "lines": "197-202",
+          "code": "const canModify = (booking) => {\n  const reservationTime = dayjs(booking.reservationDateTime)\n  const now = dayjs()\n  const hoursUntilReservation = reservationTime.diff(now, 'hours')\n  return hoursUntilReservation >= 12\n}"
+        },
+        {
+          "file": "src/features/bookings/BookingsList.jsx",
+          "lines": "330-338",
+          "code": "{canModify(booking) && booking.status !== 'Completed' && (\n  <Button variant=\"danger\" size=\"sm\" onClick={() => handleCancel(booking.id)}>\n    <TrashIcon className=\"h-4 w-4\" />\n  </Button>\n)}"
+        }
+      ],
+      "notes": "Same canModify function applies to cancel"
+    },
+    "W-UI-1": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/styles/index.css",
+          "lines": "1-83",
+          "code": "@tailwind base;\n@tailwind components;\n@tailwind utilities;"
+        },
+        {
+          "file": "tailwind.config.js",
+          "lines": "1-62",
+          "code": "Tailwind configuration with custom colors and theme"
+        },
+        {
+          "file": "src/components/Layout/Sidebar.jsx",
+          "lines": "28",
+          "code": "className=\"hidden md:flex md:w-64 md:flex-col\""
+        }
+      ],
+      "notes": "Tailwind properly configured with responsive design"
+    }
+  },
+  "backend_contract_signals": {
+    "S-API-1": {
+      "status": "Meets",
+      "evidence": [
+        {
+          "file": "src/api/bookings.js",
+          "lines": "1-57",
+          "code": "C# Web API endpoints referenced throughout"
+        },
+        {
+          "file": "src/api/stations.js",
+          "lines": "1-47",
+          "code": "API endpoints for station management"
+        },
+        {
+          "file": "src/api/owners.js",
+          "lines": "1-39",
+          "code": "API endpoints for owner management"
+        }
+      ],
+      "notes": "UI calls C# Web API endpoints as expected"
+    },
+    "S-DB-1": {
+      "status": "Missing",
+      "evidence": [],
+      "notes": "No MongoDB/NoSQL configuration visible in frontend"
+    },
+    "S-HOST-1": {
+      "status": "Missing", 
+      "evidence": [],
+      "notes": "No IIS deployment mention in frontend"
+    }
+  },
+  "summary": {
+    "total_requirements": 11,
+    "meets": 9,
+    "missing": 2,
+    "ambiguous": 1,
+    "extra": 0
+  }
+}

@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import axios from 'axios'
 import { stationsAPI } from '../../api/stations'
 import { useToast } from '../../hooks/useToast'
 import { useAuth } from '../../app/store.jsx'
+import { getErrorMessage } from '../../utils/errors'
 import Card from '../../components/UI/Card'
 import Table from '../../components/UI/Table'
 import Button from '../../components/UI/Button'
@@ -13,6 +15,8 @@ import Input from '../../components/UI/Input'
 import Select from '../../components/UI/Select'
 import Modal from '../../components/UI/Modal'
 import Badge from '../../components/UI/Badge'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import LoadingButton from '../../components/ui/LoadingButton'
 import { PlusIcon, PencilIcon, TrashIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
 import StationScheduleEditor from './StationScheduleEditor'
 
@@ -30,6 +34,11 @@ const StationsList = () => {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
   const [editingStation, setEditingStation] = useState(null)
   const [selectedStation, setSelectedStation] = useState(null)
+  const [deactId, setDeactId] = useState(null)
+  const [checking, setChecking] = useState(null)
+  const [deactLoading, setDeactLoading] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogMsg, setDialogMsg] = useState("")
   const { user } = useAuth()
   const { showSuccess, showError } = useToast()
   const queryClient = useQueryClient()
@@ -88,11 +97,7 @@ const StationsList = () => {
       showSuccess('Success', 'Charging station deactivated successfully')
     },
     onError: (error) => {
-      if (error.response?.status === 409) {
-        showError('Cannot Deactivate', 'This station has active future bookings and cannot be deactivated')
-      } else {
-        showError('Error', error.response?.data?.message || 'Failed to deactivate charging station')
-      }
+      showError('Error', getErrorMessage(error))
     },
   })
 
@@ -120,9 +125,14 @@ const StationsList = () => {
     setIsScheduleModalOpen(true)
   }
 
-  const handleDeactivate = (stationId) => {
-    if (window.confirm('Are you sure you want to deactivate this charging station?')) {
-      deactivateMutation.mutate(stationId)
+  const handleDeactivate = async (stationId) => {
+    setDeactLoading(true)
+    try {
+      await deactivateMutation.mutateAsync(stationId)
+    } finally {
+      setDeactLoading(false)
+      setDialogOpen(false)
+      setDeactId(null)
     }
   }
 
@@ -244,13 +254,35 @@ const StationsList = () => {
                             <Cog6ToothIcon className="h-4 w-4" />
                           </Button>
                           {isBackoffice && (
-                            <Button
-                              variant="danger"
+                            <LoadingButton
+                              aria-label="Deactivate station"
+                              className="bg-red-600 text-white hover:bg-red-700"
                               size="sm"
-                              onClick={() => handleDeactivate(station.id)}
+                              loading={checking === station.id || deactLoading}
+                              onClick={async () => {
+                                setChecking(station.id)
+                                try {
+                                  // TODO: Replace with actual API endpoint when available
+                                  const { data } = await axios.get(`/api/stations/${station.id}/active-bookings-count`)
+                                  const activeCount = Number(data?.count ?? 0)
+                                  if (activeCount > 0) {
+                                    setDialogMsg(`This station has ${activeCount} active booking(s). You must resolve or wait until bookings complete before deactivation.`)
+                                    setDialogOpen(true)
+                                  } else {
+                                    setDeactId(station.id)
+                                    setDialogMsg("Are you sure you want to deactivate this station?")
+                                    setDialogOpen(true)
+                                  }
+                                } catch (e) {
+                                  setDialogMsg(getErrorMessage(e))
+                                  setDialogOpen(true)
+                                } finally {
+                                  setChecking(null)
+                                }
+                              }}
                             >
                               <TrashIcon className="h-4 w-4" />
-                            </Button>
+                            </LoadingButton>
                           )}
                         </div>
                       </Table.Cell>
@@ -354,6 +386,18 @@ const StationsList = () => {
           onClose={() => setIsScheduleModalOpen(false)}
         />
       </Modal>
+
+      {/* Deactivation Confirmation Dialog */}
+      <ConfirmDialog
+        title="Station Deactivation"
+        message={dialogMsg}
+        isOpen={dialogOpen}
+        onCancel={() => { setDialogOpen(false); setDeactId(null) }}
+        onConfirm={async () => {
+          if (!deactId) { setDialogOpen(false); return }
+          await handleDeactivate(deactId)
+        }}
+      />
     </div>
   )
 }

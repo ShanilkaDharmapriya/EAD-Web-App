@@ -1,3 +1,4 @@
+import React from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -7,32 +8,38 @@ import dayjs from 'dayjs'
 import { bookingsAPI } from '../../api/bookings'
 import { stationsAPI } from '../../api/stations'
 import { useToast } from '../../hooks/useToast'
+import { isWithin7Days, respects12HourRule, parseDateTime } from '../../utils/dateRules'
+import { useAvailability } from '../../hooks/useAvailability'
+import { getErrorMessage } from '../../utils/errors'
 import Button from '../../components/UI/Button'
 import Select from '../../components/UI/Select'
 import Input from '../../components/UI/Input'
+import LoadingButton from '../../components/ui/LoadingButton'
 
 const bookingSchema = z.object({
   stationId: z.string().min(1, 'Please select a station'),
   reservationDate: z.string().min(1, 'Please select a date'),
   reservationTime: z.string().min(1, 'Please select a time'),
-}).refine((data) => {
-  const reservationDateTime = dayjs(`${data.reservationDate} ${data.reservationTime}`)
-  const now = dayjs()
-  const maxDate = now.add(7, 'days')
-  return reservationDateTime.isAfter(now) && reservationDateTime.isBefore(maxDate)
-}, {
-  message: "Reservation must be in the future and within 7 days from now",
-  path: ["reservationDate"]
+}).superRefine((data, ctx) => {
+  const dt = parseDateTime(data.reservationDate, data.reservationTime)
+  if (!isWithin7Days(dt)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Reservation must be within the next 7 days.", path: ["reservationDate"] })
+  }
+  if (!respects12HourRule(dt)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Reservations/changes must be at least 12 hours in advance.", path: ["reservationTime"] })
+  }
 })
 
 const BookingForm = ({ booking, onClose, isOpen }) => {
   const { showSuccess, showError } = useToast()
   const queryClient = useQueryClient()
+  const { state: avail, loading: availLoading, error: availError, check } = useAvailability()
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(bookingSchema),
@@ -46,6 +53,8 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
       reservationTime: dayjs().add(1, 'hour').format('HH:mm'),
     }
   })
+
+  const watchedValues = watch()
 
   // Fetch stations for dropdown
   const { data: stationsData } = useQuery({
@@ -62,7 +71,7 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
       reset()
     },
     onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to create booking')
+      showError('Error', getErrorMessage(error))
     },
   })
 
@@ -75,11 +84,33 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
       reset()
     },
     onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to update booking')
+      showError('Error', getErrorMessage(error))
     },
   })
 
+  // Check availability when station/date/time changes
+  const onDateTimeChange = async (stationId, date, time) => {
+    if (stationId && date && time) {
+      const start = dayjs(`${date} ${time}`)
+      const end = start.add(1, 'hour') // assume 1-hour slot
+      await check(stationId, start.toISOString(), end.toISOString())
+    }
+  }
+
+  // Watch for changes and trigger availability check
+  React.useEffect(() => {
+    if (watchedValues.stationId && watchedValues.reservationDate && watchedValues.reservationTime) {
+      onDateTimeChange(watchedValues.stationId, watchedValues.reservationDate, watchedValues.reservationTime)
+    }
+  }, [watchedValues.stationId, watchedValues.reservationDate, watchedValues.reservationTime])
+
   const onSubmit = (data) => {
+    // Block submission if slot is unavailable
+    if (avail === "unavailable") {
+      showError('Error', 'Selected time is not available.')
+      return
+    }
+
     const reservationDateTime = dayjs(`${data.reservationDate} ${data.reservationTime}`).toISOString()
     const bookingData = {
       stationId: data.stationId,
@@ -133,6 +164,11 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
         <p>• Reservations can only be made up to 7 days in advance</p>
       </div>
 
+      {/* Availability feedback */}
+      {availLoading && <p className="text-sm text-gray-500">Checking slot availability…</p>}
+      {avail === "unavailable" && <p className="text-sm text-red-600">Selected time is already booked.</p>}
+      {availError && <p className="text-sm text-amber-600">{availError}</p>}
+
       <div className="flex justify-end space-x-3 pt-4">
         <Button
           type="button"
@@ -141,12 +177,13 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
         >
           Cancel
         </Button>
-        <Button
+        <LoadingButton
           type="submit"
           loading={createMutation.isPending || updateMutation.isPending}
+          disabled={avail === "unavailable"}
         >
           {booking ? 'Update' : 'Create'}
-        </Button>
+        </LoadingButton>
       </div>
     </form>
   )
