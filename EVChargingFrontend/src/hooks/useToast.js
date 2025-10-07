@@ -47,4 +47,4 @@ const useToast = () => {
   }
 }
 
-export default useToast
+export { useToast }

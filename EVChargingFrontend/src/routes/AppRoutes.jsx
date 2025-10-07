@@ -8,6 +8,12 @@ import AppShell from '../components/Layout/AppShell'
 import LoginPage from '../features/auth/LoginPage'
 import Dashboard from '../pages/Dashboard'
 import UsersList from '../features/users/UsersList'
+import OwnersList from '../features/owners/OwnersList'
+import OwnerDetails from '../features/owners/OwnerDetails'
+import StationsList from '../features/stations/StationsList'
+import BookingsList from '../features/bookings/BookingsList'
+import BookingDetails from '../features/bookings/BookingDetails'
+import OwnerDashboard from '../features/bookings/OwnerDashboard'
 import NotFound from '../pages/NotFound'
 
 const AppRoutes = () => {
@@ -34,6 +40,14 @@ const AppRoutes = () => {
                   <UsersList />
                 </RoleGuard>
               } />
+              
+              {/* All authenticated users can access these */}
+              <Route path="owners" element={<OwnersList />} />
+              <Route path="owners/:nic" element={<OwnerDetails />} />
+              <Route path="stations" element={<StationsList />} />
+              <Route path="bookings" element={<BookingsList />} />
+              <Route path="bookings/:id" element={<BookingDetails />} />
+              <Route path="owner-dashboard" element={<OwnerDashboard />} />
             </Route>
             
             {/* 404 Route */}

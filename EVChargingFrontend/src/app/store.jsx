@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer } from 'react'
+import { createContext, useContext, useReducer, useEffect } from 'react'
 
 // Auth state management
 const AuthContext = createContext()
@@ -30,7 +30,7 @@ const authReducer = (state, action) => {
 }
 
 const initialState = {
-  user: null,
+  user: JSON.parse(localStorage.getItem('user') || 'null'),
   token: localStorage.getItem('token'),
   isAuthenticated: !!localStorage.getItem('token'),
   loading: false,
@@ -38,6 +38,34 @@ const initialState = {
 
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState)
+
+  // Load user data from localStorage on app start
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    const userData = localStorage.getItem('user')
+    
+    if (token && userData) {
+      try {
+        const user = JSON.parse(userData)
+        
+        // Check if user object has userId field (new format)
+        if (!user.userId && !user.id) {
+          console.log('Old user format detected, clearing localStorage and forcing re-login')
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+          dispatch({ type: 'LOGOUT' })
+          return
+        }
+        
+        dispatch({ type: 'LOGIN', payload: { user, token } })
+      } catch (error) {
+        // If user data is corrupted, clear it
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        dispatch({ type: 'LOGOUT' })
+      }
+    }
+  }, [])
 
   const login = (user, token) => {
     localStorage.setItem('token', token)

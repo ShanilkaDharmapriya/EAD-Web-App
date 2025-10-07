@@ -1,7 +1,11 @@
 import { NavLink } from 'react-router-dom'
 import { 
   HomeIcon,
-  UsersIcon
+  UsersIcon,
+  UserGroupIcon,
+  BuildingOfficeIcon,
+  CalendarDaysIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../app/store.jsx'
 
@@ -15,6 +19,9 @@ const Sidebar = () => {
     ...(isBackoffice ? [
       { name: 'Users', href: '/users', icon: UsersIcon, current: false },
     ] : []),
+    { name: 'EV Owners', href: '/owners', icon: UserGroupIcon, current: false },
+    { name: 'Stations', href: '/stations', icon: BuildingOfficeIcon, current: false },
+    { name: 'Bookings', href: '/bookings', icon: CalendarDaysIcon, current: false },
   ]
 
   return (

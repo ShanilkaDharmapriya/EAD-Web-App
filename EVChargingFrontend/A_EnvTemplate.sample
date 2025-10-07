@@ -1,0 +1,86 @@
+# Environment Variables Template
+
+# Copy this file to .env.local and update the values
+
+# API Configuration
+# Backend API base URL
+VITE_API_BASE_URL=http://localhost:5189
+
+# Optional: API timeout in milliseconds
+# VITE_API_TIMEOUT=10000
+
+# Optional: Enable/disable API logging
+# VITE_API_LOGGING=true
+
+# Optional: Development mode features
+# VITE_DEV_MODE=true
+
+# Optional: Mock API for development
+# VITE_USE_MOCK_API=false
+
+# Optional: Analytics tracking
+# VITE_ANALYTICS_ID=your-analytics-id
+
+# Optional: Error reporting
+# VITE_SENTRY_DSN=your-sentry-dsn
+
+# Optional: Feature flags
+# VITE_ENABLE_QR_SCANNING=true
+# VITE_ENABLE_NOTIFICATIONS=true
+# VITE_ENABLE_OFFLINE_MODE=false
+
+# Optional: Theme configuration
+# VITE_DEFAULT_THEME=light
+# VITE_ENABLE_DARK_MODE=true
+
+# Optional: Performance monitoring
+# VITE_ENABLE_PERFORMANCE_MONITORING=true
+
+# Optional: Debug mode
+# VITE_DEBUG_MODE=false
+# VITE_DEBUG_API_CALLS=false
+
+# Optional: Build configuration
+# VITE_BUILD_SOURCEMAP=true
+# VITE_BUILD_ANALYZE=false
+
+# Optional: Testing configuration
+# VITE_TEST_MODE=false
+# VITE_MOCK_API_DELAY=1000
+
+# Optional: Security configuration
+# VITE_ENABLE_CSRF_PROTECTION=true
+# VITE_SESSION_TIMEOUT=3600000
+
+# Optional: Internationalization
+# VITE_DEFAULT_LOCALE=en
+# VITE_SUPPORTED_LOCALES=en,es,fr
+
+# Optional: File upload configuration
+# VITE_MAX_FILE_SIZE=10485760
+# VITE_ALLOWED_FILE_TYPES=image/jpeg,image/png,application/pdf
+
+# Optional: Real-time features
+# VITE_WEBSOCKET_URL=ws://localhost:5189/ws
+# VITE_ENABLE_REAL_TIME_UPDATES=true
+
+# Optional: Payment integration
+# VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
+# VITE_PAYMENT_ENABLED=false
+
+# Optional: Map integration
+# VITE_GOOGLE_MAPS_API_KEY=your-google-maps-key
+# VITE_MAP_DEFAULT_CENTER_LAT=6.9271
+# VITE_MAP_DEFAULT_CENTER_LNG=79.8612
+
+# Optional: Notification service
+# VITE_FIREBASE_CONFIG={"apiKey":"...","authDomain":"...","projectId":"..."}
+# VITE_PUSH_NOTIFICATIONS_ENABLED=false
+
+# Optional: Backup and sync
+# VITE_ENABLE_AUTO_SAVE=true
+# VITE_AUTO_SAVE_INTERVAL=30000
+
+# Optional: Advanced features
+# VITE_ENABLE_EXPERIMENTAL_FEATURES=false
+# VITE_ENABLE_BETA_FEATURES=false
