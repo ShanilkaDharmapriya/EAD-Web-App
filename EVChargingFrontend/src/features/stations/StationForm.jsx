@@ -8,6 +8,7 @@ import { useAuth } from '../../app/store.jsx'
 import Button from '../../components/UI/Button'
 import Input from '../../components/UI/Input'
 import Select from '../../components/UI/Select'
+import LocationMap from '../../components/UI/LocationMap'
 
 const stationSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),
@@ -27,6 +28,8 @@ const StationForm = ({ station, onClose, isOpen }) => {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(stationSchema),
@@ -41,11 +44,19 @@ const StationForm = ({ station, onClose, isOpen }) => {
       name: '',
       type: '',
       totalSlots: 1,
-      latitude: 0,
-      longitude: 0,
+      latitude: 6.9271, // Default to Colombo, Sri Lanka
+      longitude: 79.8612,
       address: '',
     }
   })
+
+  const latitude = watch('latitude')
+  const longitude = watch('longitude')
+
+  const handleLocationChange = (lat, lng) => {
+    setValue('latitude', lat)
+    setValue('longitude', lng)
+  }
 
   const createMutation = useMutation({
     mutationFn: stationsAPI.createStation,
@@ -125,24 +136,24 @@ const StationForm = ({ station, onClose, isOpen }) => {
         max="50"
       />
 
-      <div className="grid grid-cols-2 gap-4">
-        <Input
-          label="Latitude"
-          type="number"
-          step="any"
-          {...register('latitude', { valueAsNumber: true })}
-          error={errors.latitude?.message}
-          placeholder="Enter latitude"
-        />
-        <Input
-          label="Longitude"
-          type="number"
-          step="any"
-          {...register('longitude', { valueAsNumber: true })}
-          error={errors.longitude?.message}
-          placeholder="Enter longitude"
-        />
-      </div>
+      <LocationMap
+        latitude={latitude}
+        longitude={longitude}
+        onLocationChange={handleLocationChange}
+        height="300px"
+        className="mb-4"
+      />
+      
+      {/* Hidden inputs for form validation */}
+      <input type="hidden" {...register('latitude', { valueAsNumber: true })} />
+      <input type="hidden" {...register('longitude', { valueAsNumber: true })} />
+      
+      {errors.latitude && (
+        <p className="text-red-500 text-sm mt-1">{errors.latitude.message}</p>
+      )}
+      {errors.longitude && (
+        <p className="text-red-500 text-sm mt-1">{errors.longitude.message}</p>
+      )}
 
       <Input
         label="Address"
