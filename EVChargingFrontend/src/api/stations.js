@@ -44,4 +44,10 @@ export const stationsAPI = {
     const response = await api.delete(`/api/ChargingStation/${id}`)
     return response.data
   },
+
+  // Activate station
+  activateStation: async (id) => {
+    const response = await api.post(`/api/ChargingStation/${id}/activate`)
+    return response.data
+  },
 }

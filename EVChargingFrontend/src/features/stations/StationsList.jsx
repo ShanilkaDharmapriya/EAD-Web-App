@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import axios from 'axios'
 import { stationsAPI } from '../../api/stations'
 import { useToast } from '../../hooks/useToast'
 import { useAuth } from '../../app/store.jsx'
@@ -36,7 +35,6 @@ const StationsList = () => {
   const [editingStation, setEditingStation] = useState(null)
   const [selectedStation, setSelectedStation] = useState(null)
   const [deactId, setDeactId] = useState(null)
-  const [checking, setChecking] = useState(null)
   const [deactLoading, setDeactLoading] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMsg, setDialogMsg] = useState("")
@@ -120,6 +118,18 @@ const StationsList = () => {
     },
   })
 
+  // Activate station mutation
+  const activateMutation = useMutation({
+    mutationFn: stationsAPI.activateStation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stations'] })
+      showSuccess('Success', 'Charging station activated successfully')
+    },
+    onError: (error) => {
+      showError('Error', getErrorMessage(error))
+    },
+  })
+
   const handleCreate = () => {
     setEditingStation(null)
     reset()
@@ -148,10 +158,22 @@ const StationsList = () => {
     setDeactLoading(true)
     try {
       await deactivateMutation.mutateAsync(stationId)
-    } finally {
-      setDeactLoading(false)
       setDialogOpen(false)
       setDeactId(null)
+    } catch (error) {
+      // Error is handled by the mutation's onError, but we need to close the dialog
+      setDialogOpen(false)
+      setDeactId(null)
+    } finally {
+      setDeactLoading(false)
+    }
+  }
+
+  const handleActivate = async (stationId) => {
+    try {
+      await activateMutation.mutateAsync(stationId)
+    } catch (error) {
+      // Error is handled by the mutation's onError
     }
   }
 
@@ -273,35 +295,35 @@ const StationsList = () => {
                             <Cog6ToothIcon className="h-4 w-4" />
                           </Button>
                           {isBackoffice && (
-                            <LoadingButton
-                              aria-label="Deactivate station"
-                              className="bg-red-600 text-white hover:bg-red-700"
-                              size="sm"
-                              loading={checking === station.id || deactLoading}
-                              onClick={async () => {
-                                setChecking(station.id)
-                                try {
-                                  // TODO: Replace with actual API endpoint when available
-                                  const { data } = await axios.get(`/api/stations/${station.id}/active-bookings-count`)
-                                  const activeCount = Number(data?.count ?? 0)
-                                  if (activeCount > 0) {
-                                    setDialogMsg(`This station has ${activeCount} active booking(s). You must resolve or wait until bookings complete before deactivation.`)
-                                    setDialogOpen(true)
-                                  } else {
+                            <>
+                              {station.isActive ? (
+                                <LoadingButton
+                                  aria-label="Deactivate station"
+                                  className="bg-red-600 text-white hover:bg-red-700"
+                                  size="sm"
+                                  loading={deactLoading}
+                                  onClick={() => {
                                     setDeactId(station.id)
-                                    setDialogMsg("Are you sure you want to deactivate this station?")
+                                    setDialogMsg("Are you sure you want to deactivate this station? This action cannot be undone.")
                                     setDialogOpen(true)
-                                  }
-                                } catch (e) {
-                                  setDialogMsg(getErrorMessage(e))
-                                  setDialogOpen(true)
-                                } finally {
-                                  setChecking(null)
-                                }
-                              }}
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                            </LoadingButton>
+                                  }}
+                                >
+                                  <TrashIcon className="h-4 w-4" />
+                                </LoadingButton>
+                              ) : (
+                                <LoadingButton
+                                  aria-label="Activate station"
+                                  className="bg-green-600 text-white hover:bg-green-700"
+                                  size="sm"
+                                  loading={activateMutation.isPending}
+                                  onClick={() => handleActivate(station.id)}
+                                >
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </LoadingButton>
+                              )}
+                            </>
                           )}
                         </div>
                       </Table.Cell>
