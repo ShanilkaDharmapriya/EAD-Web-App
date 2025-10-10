@@ -340,64 +340,74 @@ const StationsList = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingStation ? 'Edit Station' : 'Create Station'}
-        size="lg"
+        size="2xl"
       >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Input
-            label="Station Name"
-            {...register('name')}
-            error={errors.name?.message}
-            placeholder="Enter station name"
-          />
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Two-column layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left side - Form inputs */}
+            <div className="space-y-4">
+              <Input
+                label="Station Name"
+                {...register('name')}
+                error={errors.name?.message}
+                placeholder="Enter station name"
+              />
 
-          <Select
-            label="Type"
-            {...register('type')}
-            error={errors.type?.message}
-            options={[
-              { value: 'AC', label: 'AC (Alternating Current)' },
-              { value: 'DC', label: 'DC (Direct Current)' },
-            ]}
-            placeholder="Select station type"
-          />
+              <Select
+                label="Type"
+                {...register('type')}
+                error={errors.type?.message}
+                options={[
+                  { value: 'AC', label: 'AC (Alternating Current)' },
+                  { value: 'DC', label: 'DC (Direct Current)' },
+                ]}
+                placeholder="Select station type"
+              />
 
-          <Input
-            label="Total Slots"
-            type="number"
-            {...register('totalSlots', { valueAsNumber: true })}
-            error={errors.totalSlots?.message}
-            placeholder="Enter total number of slots"
-            min="1"
-            max="50"
-          />
+              <Input
+                label="Total Slots"
+                type="number"
+                {...register('totalSlots', { valueAsNumber: true })}
+                error={errors.totalSlots?.message}
+                placeholder="Enter total number of slots"
+                min="1"
+                max="50"
+              />
 
-          <LocationMap
-            latitude={latitude}
-            longitude={longitude}
-            onLocationChange={handleLocationChange}
-            height="300px"
-            className="mb-4"
-          />
-          
-          {/* Hidden inputs for form validation */}
-          <input type="hidden" {...register('latitude', { valueAsNumber: true })} />
-          <input type="hidden" {...register('longitude', { valueAsNumber: true })} />
-          
-          {errors.latitude && (
-            <p className="text-red-500 text-sm mt-1">{errors.latitude.message}</p>
-          )}
-          {errors.longitude && (
-            <p className="text-red-500 text-sm mt-1">{errors.longitude.message}</p>
-          )}
+              <Input
+                label="Address"
+                {...register('address')}
+                error={errors.address?.message}
+                placeholder="Enter full address"
+              />
+            </div>
 
-          <Input
-            label="Address"
-            {...register('address')}
-            error={errors.address?.message}
-            placeholder="Enter full address"
-          />
+            {/* Right side - Location map */}
+            <div className="space-y-4">
+              <LocationMap
+                latitude={latitude}
+                longitude={longitude}
+                onLocationChange={handleLocationChange}
+                height="400px"
+                className="w-full"
+              />
+              
+              {/* Hidden inputs for form validation */}
+              <input type="hidden" {...register('latitude', { valueAsNumber: true })} />
+              <input type="hidden" {...register('longitude', { valueAsNumber: true })} />
+              
+              {errors.latitude && (
+                <p className="text-red-500 text-sm mt-1">{errors.latitude.message}</p>
+              )}
+              {errors.longitude && (
+                <p className="text-red-500 text-sm mt-1">{errors.longitude.message}</p>
+              )}
+            </div>
+          </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
+          {/* Action buttons */}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
             <Button
               type="button"
               variant="outline"
