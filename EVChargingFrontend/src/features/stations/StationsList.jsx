@@ -248,6 +248,7 @@ const StationsList = () => {
             <Table>
               <Table.Header>
                 <tr>
+                  <Table.Head>ID</Table.Head>
                   <Table.Head>Name</Table.Head>
                   <Table.Head>Type</Table.Head>
                   <Table.Head>Slots</Table.Head>
@@ -260,6 +261,7 @@ const StationsList = () => {
               <Table.Body>
                 {stations.map((station) => (
                     <Table.Row key={station.id}>
+                      <Table.Cell className="font-medium">{station.customId}</Table.Cell>
                       <Table.Cell className="font-medium">{station.name}</Table.Cell>
                       <Table.Cell>
                         <Badge variant="info">{station.type}</Badge>
