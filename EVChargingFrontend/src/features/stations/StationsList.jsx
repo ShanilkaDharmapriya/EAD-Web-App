@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { stationsAPI } from '../../api/stations'
+import { usersAPI } from '../../api/users'
 import { useToast } from '../../hooks/useToast'
 import { useAuth } from '../../app/store.jsx'
 import { getErrorMessage } from '../../utils/errors'
@@ -15,9 +16,13 @@ import Select from '../../components/UI/Select'
 import Modal from '../../components/UI/Modal'
 import Badge from '../../components/UI/Badge'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
-import LoadingButton from '../../components/ui/LoadingButton'
 import LocationMap from '../../components/UI/LocationMap'
-import { PlusIcon, PencilIcon, TrashIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
+import { 
+  PlusIcon, 
+  PencilIcon, 
+  TrashIcon, 
+  Cog6ToothIcon
+} from '@heroicons/react/24/outline'
 import StationScheduleEditor from './StationScheduleEditor'
 
 const stationSchema = z.object({
@@ -27,6 +32,7 @@ const stationSchema = z.object({
   latitude: z.number().min(-90, 'Invalid latitude').max(90, 'Invalid latitude'),
   longitude: z.number().min(-180, 'Invalid longitude').max(180, 'Invalid longitude'),
   address: z.string().min(10, 'Address must be at least 10 characters').max(200, 'Address must be less than 200 characters'),
+  operatorId: z.string().min(1, 'Station operator is required'),
 })
 
 const StationsList = () => {
@@ -35,14 +41,14 @@ const StationsList = () => {
   const [editingStation, setEditingStation] = useState(null)
   const [selectedStation, setSelectedStation] = useState(null)
   const [deactId, setDeactId] = useState(null)
-  const [deactLoading, setDeactLoading] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMsg, setDialogMsg] = useState("")
   const { user } = useAuth()
   const { showSuccess, showError } = useToast()
   const queryClient = useQueryClient()
   const isBackoffice = user?.role === 'Backoffice'
-  const canManageStations = user?.role === 'Backoffice' || user?.role === 'StationOperator'
+  const isStationOperator = user?.role === 'StationOperator'
+  const canManageStations = isBackoffice || isStationOperator
 
   const {
     register,
@@ -60,6 +66,7 @@ const StationsList = () => {
       latitude: 6.9271, // Default to Colombo, Sri Lanka
       longitude: 79.8612,
       address: '',
+      operatorId: '',
     }
   })
 
@@ -71,10 +78,23 @@ const StationsList = () => {
     setValue('longitude', lng)
   }
 
-  // Fetch stations
+  // Fetch stations - filter by operator if user is StationOperator
   const { data: stationsData, isLoading } = useQuery({
-    queryKey: ['stations'],
-    queryFn: () => stationsAPI.getStations(),
+    queryKey: ['stations', isStationOperator ? user?.userId || user?.id : null],
+    queryFn: () => {
+      const params = {}
+      if (isStationOperator) {
+        params.operatorId = user?.userId || user?.id
+      }
+      return stationsAPI.getStations(params)
+    },
+  })
+
+  // Fetch station operators (only for Backoffice when creating/editing stations)
+  const { data: operatorsData } = useQuery({
+    queryKey: ['users', 'StationOperator'],
+    queryFn: () => usersAPI.getUsers({ role: 'StationOperator', pageSize: 100 }),
+    enabled: isBackoffice,
   })
 
   // Create station mutation
@@ -132,7 +152,16 @@ const StationsList = () => {
 
   const handleCreate = () => {
     setEditingStation(null)
-    reset()
+    const defaultValues = {
+      name: '',
+      type: '',
+      totalSlots: 1,
+      latitude: 6.9271,
+      longitude: 79.8612,
+      address: '',
+      operatorId: isStationOperator ? (user?.userId || user?.id) : '',
+    }
+    reset(defaultValues)
     setIsModalOpen(true)
   }
 
@@ -145,6 +174,7 @@ const StationsList = () => {
       latitude: station.location.latitude,
       longitude: station.location.longitude,
       address: station.location.address,
+      operatorId: station.operatorId || '',
     })
     setIsModalOpen(true)
   }
@@ -155,7 +185,6 @@ const StationsList = () => {
   }
 
   const handleDeactivate = async (stationId) => {
-    setDeactLoading(true)
     try {
       await deactivateMutation.mutateAsync(stationId)
       setDialogOpen(false)
@@ -164,8 +193,6 @@ const StationsList = () => {
       // Error is handled by the mutation's onError, but we need to close the dialog
       setDialogOpen(false)
       setDeactId(null)
-    } finally {
-      setDeactLoading(false)
     }
   }
 
@@ -178,20 +205,11 @@ const StationsList = () => {
   }
 
   const onSubmit = (data) => {
-    // Debug: Log user object to see what's available
-    console.log('Current user object:', user)
-    console.log('User userId:', user?.userId)
-    console.log('User id:', user?.id)
-    console.log('User username:', user?.username)
-    
-    const operatorId = user?.userId || user?.id || user?.username || ''
-    console.log('Using operatorId:', operatorId)
-    
     const stationData = {
       name: data.name,
       type: data.type,
       totalSlots: data.totalSlots,
-      operatorId: operatorId,
+      operatorId: data.operatorId,
       location: {
         latitude: data.latitude,
         longitude: data.longitude,
@@ -207,10 +225,12 @@ const StationsList = () => {
   }
 
   const stations = stationsData?.data?.items || []
+  const operators = operatorsData?.data?.items || []
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="max-w-7xl mx-auto px-8 pt-6 pb-8">
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Charging Stations</h1>
           <p className="mt-1 text-sm text-gray-500">Manage charging stations and their schedules</p>
@@ -281,52 +301,65 @@ const StationsList = () => {
                         {new Date(station.createdAt).toLocaleDateString()}
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(station)}
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleSchedule(station)}
-                          >
-                            <Cog6ToothIcon className="h-4 w-4" />
-                          </Button>
+                        <div className="flex items-center gap-2 flex-nowrap">
+                          {/* Activate/Deactivate Button */}
                           {isBackoffice && (
-                            <>
-                              {station.isActive ? (
-                                <LoadingButton
-                                  aria-label="Deactivate station"
-                                  className="bg-red-600 text-white hover:bg-red-700"
-                                  size="sm"
-                                  loading={deactLoading}
-                                  onClick={() => {
-                                    setDeactId(station.id)
-                                    setDialogMsg("Are you sure you want to deactivate this station? This action cannot be undone.")
-                                    setDialogOpen(true)
-                                  }}
-                                >
-                                  <TrashIcon className="h-4 w-4" />
-                                </LoadingButton>
-                              ) : (
-                                <LoadingButton
-                                  aria-label="Activate station"
-                                  className="bg-green-600 text-white hover:bg-green-700"
-                                  size="sm"
-                                  loading={activateMutation.isPending}
-                                  onClick={() => handleActivate(station.id)}
-                                >
-                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                </LoadingButton>
-                              )}
-                            </>
+                            <Button
+                              variant={station.isActive ? 'warning' : 'success'}
+                              size="sm"
+                              onClick={() => {
+                                if (station.isActive) {
+                                  setDeactId(station.id)
+                                  setDialogMsg("Are you sure you want to deactivate this station?")
+                                  setDialogOpen(true)
+                                } else {
+                                  handleActivate(station.id)
+                                }
+                              }}
+                              title={station.isActive ? 'Deactivate station' : 'Activate station'}
+                              className="min-w-[100px]"
+                            >
+                              {station.isActive ? 'Deactivate' : 'Activate'}
+                            </Button>
                           )}
+                          
+                          <div className="flex items-center gap-2">
+                            {/* Edit Button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(station)}
+                              title="Edit station"
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                            </Button>
+                            
+                            {/* Schedule Button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSchedule(station)}
+                              title="Manage schedule"
+                            >
+                              <Cog6ToothIcon className="h-4 w-4" />
+                            </Button>
+                            
+                            {/* Delete Button */}
+                            {isBackoffice && (
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => {
+                                  setDeactId(station.id)
+                                  setDialogMsg("Are you sure you want to delete this station? This action cannot be undone.")
+                                  setDialogOpen(true)
+                                }}
+                                title="Delete station permanently"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </Table.Cell>
                     </Table.Row>
@@ -376,6 +409,21 @@ const StationsList = () => {
                 min="1"
                 max="50"
               />
+
+              {isBackoffice ? (
+                <Select
+                  label="Station Operator"
+                  {...register('operatorId')}
+                  error={errors.operatorId?.message}
+                  options={operators.map(op => ({
+                    value: op.id,
+                    label: op.username
+                  }))}
+                  placeholder="Select station operator"
+                />
+              ) : (
+                <input type="hidden" {...register('operatorId')} />
+              )}
 
               <Input
                 label="Address"
@@ -440,9 +488,9 @@ const StationsList = () => {
         />
       </Modal>
 
-      {/* Deactivation Confirmation Dialog */}
+      {/* Confirmation Dialog */}
       <ConfirmDialog
-        title="Station Deactivation"
+        title={dialogMsg.includes("delete") ? "Delete Station" : "Deactivate Station"}
         message={dialogMsg}
         isOpen={dialogOpen}
         onCancel={() => { setDialogOpen(false); setDeactId(null) }}
@@ -451,6 +499,7 @@ const StationsList = () => {
           await handleDeactivate(deactId)
         }}
       />
+      </div>
     </div>
   )
 }

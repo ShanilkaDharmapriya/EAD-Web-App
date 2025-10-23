@@ -63,8 +63,9 @@ const OwnerDetails = () => {
   const stats = dashboardData?.data || {}
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center space-x-4">
+    <div className="max-w-7xl mx-auto px-8 pt-6 pb-8">
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4">
         <Link to="/owners">
           <Button variant="outline" size="sm">
             <ArrowLeftIcon className="h-4 w-4 mr-2" />
@@ -212,6 +213,7 @@ const OwnerDetails = () => {
           </Link>
         </div>
       )}
+      </div>
     </div>
   )
 }

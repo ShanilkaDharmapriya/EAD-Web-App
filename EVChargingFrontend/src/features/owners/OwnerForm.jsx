@@ -8,11 +8,24 @@ import Button from '../../components/UI/Button'
 import Input from '../../components/UI/Input'
 
 const ownerSchema = z.object({
-  nic: z.string().min(10, 'NIC must be at least 10 characters').max(12, 'NIC must be less than 12 characters'),
-  name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),
-  email: z.string().email('Invalid email format').max(100, 'Email must be less than 100 characters'),
-  phone: z.string().min(10, 'Phone must be at least 10 characters').max(15, 'Phone must be less than 15 characters'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  nic: z.string()
+    .min(10, 'NIC must be at least 10 characters')
+    .max(12, 'NIC must be at most 12 characters')
+    .regex(/^[0-9]{9}[VX]$|^[0-9]{12}$/, 'NIC must be in Sri Lankan format (9 digits + V/X or 12 digits)'),
+  name: z.string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(100, 'Name must be at most 100 characters')
+    .regex(/^[a-zA-Z\s]+$/, 'Name can only contain letters and spaces'),
+  email: z.string()
+    .email('Invalid email format')
+    .max(100, 'Email must not exceed 100 characters'),
+  phone: z.string()
+    .min(10, 'Phone must be at least 10 characters')
+    .max(15, 'Phone must be at most 15 characters')
+    .regex(/^[0-9+\-\s()]+$/, 'Phone can only contain numbers, spaces, and phone symbols (+, -, (), spaces)'),
+  password: z.string()
+    .min(6, 'Password must be at least 6 characters')
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one lowercase letter, one uppercase letter, and one digit'),
 })
 
 const OwnerForm = ({ owner, onClose, isOpen }) => {
@@ -83,7 +96,7 @@ const OwnerForm = ({ owner, onClose, isOpen }) => {
         label="NIC"
         {...register('nic')}
         error={errors.nic?.message}
-        placeholder="Enter NIC number"
+        placeholder="e.g., 123456789V or 200012345678"
         disabled={!!owner}
       />
 
@@ -91,7 +104,7 @@ const OwnerForm = ({ owner, onClose, isOpen }) => {
         label="Full Name"
         {...register('name')}
         error={errors.name?.message}
-        placeholder="Enter full name"
+        placeholder="Enter full name (letters and spaces only)"
       />
 
       <Input
@@ -106,7 +119,7 @@ const OwnerForm = ({ owner, onClose, isOpen }) => {
         label="Phone"
         {...register('phone')}
         error={errors.phone?.message}
-        placeholder="Enter phone number"
+        placeholder="e.g., 0771234567 or +94771234567"
       />
 
       <Input
@@ -114,7 +127,7 @@ const OwnerForm = ({ owner, onClose, isOpen }) => {
         type="password"
         {...register('password')}
         error={errors.password?.message}
-        placeholder="Enter password"
+        placeholder="Min 6 chars, include A-Z, a-z, 0-9"
       />
 
       <div className="flex justify-end space-x-3 pt-4">

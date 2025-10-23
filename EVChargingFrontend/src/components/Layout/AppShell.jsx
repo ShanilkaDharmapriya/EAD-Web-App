@@ -11,7 +11,7 @@ const AppShell = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="lg:pl-64">
         <Topbar onMobileMenuToggle={() => setSidebarOpen(true)} />
-        <main className="pt-16 min-h-screen">
+        <main className="min-h-screen">
           <div className="relative bg-slate-50">
             <Outlet />
           </div>

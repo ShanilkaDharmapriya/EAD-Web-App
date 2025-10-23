@@ -49,8 +49,9 @@ const OwnerDashboard = () => {
   const bookings = recentBookings?.data?.items || []
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="max-w-7xl mx-auto px-8 pt-6 pb-8">
+      <div className="space-y-6">
+        <div>
         <h1 className="text-2xl font-bold text-gray-900">My Dashboard</h1>
         <p className="mt-1 text-sm text-gray-500">
           Welcome back, {user?.name}! Here's your booking overview.
@@ -178,6 +179,7 @@ const OwnerDashboard = () => {
             <p>• You can modify bookings up to 12 hours before the reservation time</p>
           </div>
         </Card>
+      </div>
       </div>
     </div>
   )

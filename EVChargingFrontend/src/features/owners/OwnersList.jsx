@@ -15,14 +15,32 @@ import Input from '../../components/UI/Input'
 import Modal from '../../components/UI/Modal'
 import Badge from '../../components/UI/Badge'
 import Pagination from '../../components/UI/Pagination'
-import { PlusIcon, PencilIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import ConfirmDialog from '../../components/UI/ConfirmDialog'
+import { 
+  PlusIcon, 
+  PencilIcon, 
+  TrashIcon, 
+  CheckCircleIcon, 
+  XCircleIcon,
+  MagnifyingGlassIcon 
+} from '@heroicons/react/24/outline'
 
 const ownerSchema = z.object({
   nic: z.string().regex(SL_NIC_REGEX, 'Enter a valid Sri Lankan NIC (9 digits + V/X or 12 digits).'),
-  name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),
-  email: z.string().email('Invalid email format').max(100, 'Email must be less than 100 characters'),
-  phone: z.string().min(10, 'Phone must be at least 10 characters').max(15, 'Phone must be less than 15 characters'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  name: z.string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(100, 'Name must be less than 100 characters')
+    .regex(/^[a-zA-Z\s]+$/, 'Name can only contain letters and spaces'),
+  email: z.string()
+    .email('Invalid email format')
+    .max(100, 'Email must not exceed 100 characters'),
+  phone: z.string()
+    .min(10, 'Phone must be at least 10 characters')
+    .max(15, 'Phone must be at most 15 characters')
+    .regex(/^[0-9+\-\s()]+$/, 'Phone can only contain numbers, spaces, and phone symbols (+, -, (), spaces)'),
+  password: z.string()
+    .min(6, 'Password must be at least 6 characters')
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one lowercase letter, one uppercase letter, and one digit'),
 })
 
 const OwnersList = () => {
@@ -30,6 +48,7 @@ const OwnersList = () => {
   const [editingOwner, setEditingOwner] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState('')
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, action: null, nic: null, isActive: false })
   const { user } = useAuth()
   const { showSuccess, showError } = useToast()
   const queryClient = useQueryClient()
@@ -103,6 +122,18 @@ const OwnersList = () => {
     },
   })
 
+  // Delete owner mutation
+  const deleteMutation = useMutation({
+    mutationFn: ownersAPI.deleteOwner,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['owners'] })
+      showSuccess('Success', 'EV Owner deleted successfully')
+    },
+    onError: (error) => {
+      showError('Error', getErrorMessage(error))
+    },
+  })
+
   const handleCreate = () => {
     setEditingOwner(null)
     reset()
@@ -121,16 +152,37 @@ const OwnersList = () => {
     setIsModalOpen(true)
   }
 
-  const handleDeactivate = (nic) => {
-    if (window.confirm('Are you sure you want to deactivate this EV owner?')) {
-      deactivateMutation.mutate(nic)
-    }
+  const handleStatusToggle = (nic, isActive) => {
+    setConfirmDialog({
+      isOpen: true,
+      action: isActive ? 'deactivate' : 'reactivate',
+      nic,
+      isActive
+    })
   }
 
-  const handleReactivate = (nic) => {
-    if (window.confirm('Are you sure you want to reactivate this EV owner?')) {
-      reactivateMutation.mutate(nic)
+  const handleDelete = (nic) => {
+    setConfirmDialog({
+      isOpen: true,
+      action: 'delete',
+      nic,
+      isActive: false
+    })
+  }
+
+  const handleConfirm = () => {
+    if (confirmDialog.action === 'deactivate') {
+      deactivateMutation.mutate(confirmDialog.nic)
+    } else if (confirmDialog.action === 'reactivate') {
+      reactivateMutation.mutate(confirmDialog.nic)
+    } else if (confirmDialog.action === 'delete') {
+      deleteMutation.mutate(confirmDialog.nic)
     }
+    setConfirmDialog({ isOpen: false, action: null, nic: null, isActive: false })
+  }
+
+  const handleCancelConfirm = () => {
+    setConfirmDialog({ isOpen: false, action: null, nic: null, isActive: false })
   }
 
   const onSubmit = (data) => {
@@ -145,8 +197,9 @@ const OwnersList = () => {
   const totalPages = ownersData?.data?.totalPages || 1
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="max-w-7xl mx-auto px-8 pt-6 pb-8">
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">EV Owners</h1>
           <p className="mt-1 text-sm text-gray-500">Manage electric vehicle owners and their accounts</p>
@@ -159,11 +212,15 @@ const OwnersList = () => {
 
       <Card>
         <div className="p-6">
-          <div className="mb-4">
+          <div className="mb-4 relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+            </div>
             <Input
-              placeholder="Search by NIC or name..."
+              placeholder="Search by NIC, name, or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
             />
           </div>
 
@@ -212,31 +269,41 @@ const OwnersList = () => {
                         {new Date(owner.createdAt).toLocaleDateString()}
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(owner)}
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </Button>
-                          {owner.isActive ? (
+                        <div className="flex items-center gap-2 flex-nowrap">
+                          {/* Activate/Deactivate Button */}
+                          {isBackoffice && (
+                            <Button
+                              variant={owner.isActive ? 'warning' : 'success'}
+                              size="sm"
+                              onClick={() => handleStatusToggle(owner.nic, owner.isActive)}
+                              title={owner.isActive ? 'Deactivate owner' : 'Activate owner'}
+                              className="min-w-[100px]"
+                            >
+                              {owner.isActive ? 'Deactivate' : 'Activate'}
+                            </Button>
+                          )}
+                          
+                          <div className="flex items-center gap-2">
+                            {/* Edit Button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(owner)}
+                              title="Edit owner"
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                            </Button>
+                            
+                            {/* Delete Button */}
                             <Button
                               variant="danger"
                               size="sm"
-                              onClick={() => handleDeactivate(owner.nic)}
+                              onClick={() => handleDelete(owner.nic)}
+                              title="Delete owner permanently"
                             >
                               <TrashIcon className="h-4 w-4" />
                             </Button>
-                          ) : isBackoffice ? (
-                            <Button
-                              variant="success"
-                              size="sm"
-                              onClick={() => handleReactivate(owner.nic)}
-                            >
-                              <ArrowPathIcon className="h-4 w-4" />
-                            </Button>
-                          ) : null}
+                          </div>
                         </div>
                       </Table.Cell>
                     </Table.Row>
@@ -269,7 +336,7 @@ const OwnersList = () => {
             label="NIC"
             {...register('nic')}
             error={errors.nic?.message}
-            placeholder="Enter NIC number"
+            placeholder="e.g., 123456789V or 200012345678"
             disabled={!!editingOwner}
           />
 
@@ -277,7 +344,7 @@ const OwnersList = () => {
             label="Full Name"
             {...register('name')}
             error={errors.name?.message}
-            placeholder="Enter full name"
+            placeholder="Enter full name (letters and spaces only)"
           />
 
           <Input
@@ -292,7 +359,7 @@ const OwnersList = () => {
             label="Phone"
             {...register('phone')}
             error={errors.phone?.message}
-            placeholder="Enter phone number"
+            placeholder="e.g., 0771234567 or +94771234567"
           />
 
           <Input
@@ -300,7 +367,7 @@ const OwnersList = () => {
             type="password"
             {...register('password')}
             error={errors.password?.message}
-            placeholder="Enter password"
+            placeholder="Min 6 chars, include A-Z, a-z, 0-9"
           />
 
           <div className="flex justify-end space-x-3 pt-4">
@@ -320,6 +387,36 @@ const OwnersList = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={
+          confirmDialog.action === 'delete'
+            ? 'Delete EV Owner'
+            : confirmDialog.action === 'deactivate'
+            ? 'Deactivate EV Owner'
+            : 'Reactivate EV Owner'
+        }
+        message={
+          confirmDialog.action === 'delete'
+            ? 'Are you sure you want to permanently delete this EV owner? This action cannot be undone.'
+            : confirmDialog.action === 'deactivate'
+            ? 'Are you sure you want to deactivate this EV owner? They will not be able to make new bookings.'
+            : 'Are you sure you want to reactivate this EV owner? They will be able to make bookings again.'
+        }
+        confirmText={
+          confirmDialog.action === 'delete'
+            ? 'Delete'
+            : confirmDialog.action === 'deactivate'
+            ? 'Deactivate'
+            : 'Reactivate'
+        }
+        cancelText="Cancel"
+        onConfirm={handleConfirm}
+        onCancel={handleCancelConfirm}
+      />
+      </div>
     </div>
   )
 }

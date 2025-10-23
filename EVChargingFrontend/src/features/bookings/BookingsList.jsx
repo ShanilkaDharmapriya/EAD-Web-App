@@ -216,8 +216,9 @@ const BookingsList = () => {
   const totalPages = bookingsData?.data?.totalPages || 1
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="max-w-7xl mx-auto px-8 pt-6 pb-8">
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
           <p className="mt-1 text-sm text-gray-500">Manage charging station bookings</p>
@@ -450,6 +451,7 @@ const BookingsList = () => {
           }
         }}
       />
+      </div>
     </div>
   )
 }

@@ -36,4 +36,10 @@ export const ownersAPI = {
     const response = await api.post(`/api/evowner/${nic}/reactivate`)
     return response.data
   },
+
+  // Delete EV owner (Backoffice only)
+  deleteOwner: async (nic) => {
+    const response = await api.delete(`/api/evowner/${nic}`)
+    return response.data
+  },
 }
