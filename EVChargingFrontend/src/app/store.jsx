@@ -48,8 +48,8 @@ export const AuthProvider = ({ children }) => {
       try {
         const user = JSON.parse(userData)
         
-        // Check if user object has userId field (new format)
-        if (!user.userId && !user.id) {
+        // Check if user object has required fields (new format)
+        if (!user.userId && !user.id || !user.username) {
           console.log('Old user format detected, clearing localStorage and forcing re-login')
           localStorage.removeItem('token')
           localStorage.removeItem('user')

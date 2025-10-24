@@ -37,9 +37,9 @@ const LoginPage = () => {
     mutationFn: authAPI.login,
     onSuccess: (data) => {
       if (data.success) {
-        const { token, role, userId } = data.data
+        const { token, role, userId, username } = data.data
         const user = { 
-          username: data.data.username || userId, 
+          username: username || userId, 
           role, 
           nic: data.data.nic,
           userId: userId,

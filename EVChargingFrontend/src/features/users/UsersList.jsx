@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { usersAPI } from '../../api/users'
 import { useToast } from '../../hooks/useToast'
+import { useAuth } from '../../app/store.jsx'
+import { getErrorMessage } from '../../utils/errors'
 import Card from '../../components/UI/Card'
 import Table from '../../components/UI/Table'
 import Button from '../../components/UI/Button'
@@ -13,6 +15,7 @@ import Select from '../../components/UI/Select'
 import Modal from '../../components/UI/Modal'
 import Badge from '../../components/UI/Badge'
 import Pagination from '../../components/UI/Pagination'
+import ConfirmDialog from '../../components/UI/ConfirmDialog'
 import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline'
 
 const userSchema = z.object({
@@ -26,8 +29,11 @@ const UsersList = () => {
   const [editingUser, setEditingUser] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState('')
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, action: null, userId: null, isActive: false })
+  const { user } = useAuth()
   const { showSuccess, showError } = useToast()
   const queryClient = useQueryClient()
+  const isBackoffice = user?.role === 'Backoffice'
 
   const {
     register,
@@ -73,6 +79,30 @@ const UsersList = () => {
     },
   })
 
+  // Deactivate user mutation
+  const deactivateMutation = useMutation({
+    mutationFn: usersAPI.deactivateUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      showSuccess('Success', 'User deactivated successfully')
+    },
+    onError: (error) => {
+      showError('Error', getErrorMessage(error))
+    },
+  })
+
+  // Activate user mutation
+  const activateMutation = useMutation({
+    mutationFn: usersAPI.activateUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      showSuccess('Success', 'User activated successfully')
+    },
+    onError: (error) => {
+      showError('Error', getErrorMessage(error))
+    },
+  })
+
   // Delete user mutation
   const deleteMutation = useMutation({
     mutationFn: usersAPI.deleteUser,
@@ -81,7 +111,7 @@ const UsersList = () => {
       showSuccess('Success', 'User deleted successfully')
     },
     onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to delete user')
+      showError('Error', getErrorMessage(error))
     },
   })
 
@@ -101,10 +131,37 @@ const UsersList = () => {
     setIsModalOpen(true)
   }
 
+  const handleStatusToggle = (userId, isActive) => {
+    setConfirmDialog({
+      isOpen: true,
+      action: isActive ? 'deactivate' : 'activate',
+      userId,
+      isActive
+    })
+  }
+
   const handleDelete = (userId) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      deleteMutation.mutate(userId)
+    setConfirmDialog({
+      isOpen: true,
+      action: 'delete',
+      userId,
+      isActive: false
+    })
+  }
+
+  const handleConfirm = () => {
+    if (confirmDialog.action === 'deactivate') {
+      deactivateMutation.mutate(confirmDialog.userId)
+    } else if (confirmDialog.action === 'activate') {
+      activateMutation.mutate(confirmDialog.userId)
+    } else if (confirmDialog.action === 'delete') {
+      deleteMutation.mutate(confirmDialog.userId)
     }
+    setConfirmDialog({ isOpen: false, action: null, userId: null, isActive: false })
+  }
+
+  const handleCancelConfirm = () => {
+    setConfirmDialog({ isOpen: false, action: null, userId: null, isActive: false })
   }
 
   const onSubmit = (data) => {
@@ -185,21 +242,43 @@ const UsersList = () => {
                         {new Date(user.createdAt).toLocaleDateString()}
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(user)}
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleDelete(user.id)}
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </Button>
+                        <div className="flex items-center gap-2 flex-nowrap">
+                          {/* Activate/Deactivate Button */}
+                          {isBackoffice && (
+                            <Button
+                              variant={user.isActive ? 'warning' : 'success'}
+                              size="sm"
+                              onClick={() => handleStatusToggle(user.id, user.isActive)}
+                              title={user.isActive ? 'Deactivate user' : 'Activate user'}
+                              className="min-w-[100px]"
+                            >
+                              {user.isActive ? 'Deactivate' : 'Activate'}
+                            </Button>
+                          )}
+                          
+                          <div className="flex items-center gap-2">
+                            {/* Edit Button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(user)}
+                              title="Edit user"
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                            </Button>
+                            
+                            {/* Delete Button */}
+                            {isBackoffice && (
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => handleDelete(user.id)}
+                                title="Delete user permanently"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </Table.Cell>
                     </Table.Row>
@@ -271,6 +350,35 @@ const UsersList = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={
+          confirmDialog.action === 'delete'
+            ? 'Delete User'
+            : confirmDialog.action === 'deactivate'
+            ? 'Deactivate User'
+            : 'Activate User'
+        }
+        message={
+          confirmDialog.action === 'delete'
+            ? 'Are you sure you want to permanently delete this user? This action cannot be undone.'
+            : confirmDialog.action === 'deactivate'
+            ? 'Are you sure you want to deactivate this user? They will not be able to access the system.'
+            : 'Are you sure you want to activate this user? They will be able to access the system again.'
+        }
+        confirmText={
+          confirmDialog.action === 'delete'
+            ? 'Delete'
+            : confirmDialog.action === 'deactivate'
+            ? 'Deactivate'
+            : 'Activate'
+        }
+        cancelText="Cancel"
+        onConfirm={handleConfirm}
+        onCancel={handleCancelConfirm}
+      />
       </div>
     </div>
   )

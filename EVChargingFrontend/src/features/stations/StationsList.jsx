@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,7 +15,7 @@ import Input from '../../components/UI/Input'
 import Select from '../../components/UI/Select'
 import Modal from '../../components/UI/Modal'
 import Badge from '../../components/UI/Badge'
-import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import ConfirmDialog from '../../components/UI/ConfirmDialog'
 import LocationMap from '../../components/UI/LocationMap'
 import { 
   PlusIcon, 
@@ -24,6 +24,7 @@ import {
   Cog6ToothIcon
 } from '@heroicons/react/24/outline'
 import StationScheduleEditor from './StationScheduleEditor'
+import StationScheduleViewer from './StationScheduleViewer'
 
 const stationSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),
@@ -41,14 +42,24 @@ const StationsList = () => {
   const [editingStation, setEditingStation] = useState(null)
   const [selectedStation, setSelectedStation] = useState(null)
   const [deactId, setDeactId] = useState(null)
+  const [deleteId, setDeleteId] = useState(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMsg, setDialogMsg] = useState("")
+  const [dialogAction, setDialogAction] = useState(null) // 'deactivate' or 'delete'
   const { user } = useAuth()
   const { showSuccess, showError } = useToast()
   const queryClient = useQueryClient()
   const isBackoffice = user?.role === 'Backoffice'
   const isStationOperator = user?.role === 'StationOperator'
-  const canManageStations = isBackoffice || isStationOperator
+  const canCreateStations = isStationOperator // Only StationOperator can create stations
+  const canManageSchedules = isStationOperator // Only StationOperator can manage schedules
+  
+  // Monitor dialog state changes
+  useEffect(() => {
+    if (dialogOpen && dialogAction === 'validation_error') {
+      // Validation error dialog is visible
+    }
+  }, [dialogOpen, dialogAction, dialogMsg])
 
   const {
     register,
@@ -132,9 +143,13 @@ const StationsList = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stations'] })
       showSuccess('Success', 'Charging station deactivated successfully')
+      setDialogOpen(false)
+      setDeactId(null)
     },
     onError: (error) => {
-      showError('Error', getErrorMessage(error))
+      // This is a fallback for when mutate() is used instead of mutateAsync()
+      const errorMessage = getErrorMessage(error)
+      showError('Error', errorMessage)
     },
   })
 
@@ -147,6 +162,22 @@ const StationsList = () => {
     },
     onError: (error) => {
       showError('Error', getErrorMessage(error))
+    },
+  })
+
+  // Delete station mutation
+  const deleteMutation = useMutation({
+    mutationFn: stationsAPI.deleteStation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stations'] })
+      showSuccess('Success', 'Charging station permanently deleted successfully')
+      setDialogOpen(false)
+      setDeleteId(null)
+    },
+    onError: (error) => {
+      // This is a fallback for when mutate() is used instead of mutateAsync()
+      const errorMessage = getErrorMessage(error)
+      showError('Error', errorMessage)
     },
   })
 
@@ -187,19 +218,31 @@ const StationsList = () => {
   const handleDeactivate = async (stationId) => {
     try {
       await deactivateMutation.mutateAsync(stationId)
-      setDialogOpen(false)
-      setDeactId(null)
     } catch (error) {
-      // Error is handled by the mutation's onError, but we need to close the dialog
-      setDialogOpen(false)
+      // Always show the validation error popup for deactivation failures
+      setDialogOpen(true)
+      setDialogAction('validation_error')
+      setDialogMsg("⚠️ Cannot deactivate this station because it has active or future bookings.\n\nPlease wait for all bookings to complete or cancel them before deactivating the station.")
       setDeactId(null)
+    }
+  }
+
+  const handleDelete = async (stationId) => {
+    try {
+      await deleteMutation.mutateAsync(stationId)
+    } catch (error) {
+      // Always show the validation error popup for deletion failures
+      setDialogOpen(true)
+      setDialogAction('validation_error')
+      setDialogMsg("⚠️ Cannot delete this station because it has active or future bookings.\n\nPlease wait for all bookings to complete or cancel them before deleting the station.")
+      setDeleteId(null)
     }
   }
 
   const handleActivate = async (stationId) => {
     try {
       await activateMutation.mutateAsync(stationId)
-    } catch (error) {
+    } catch {
       // Error is handled by the mutation's onError
     }
   }
@@ -235,7 +278,7 @@ const StationsList = () => {
           <h1 className="text-2xl font-bold text-gray-900">Charging Stations</h1>
           <p className="mt-1 text-sm text-gray-500">Manage charging stations and their schedules</p>
         </div>
-        {canManageStations && (
+        {canCreateStations && (
           <Button onClick={handleCreate}>
             <PlusIcon className="h-4 w-4 mr-2" />
             Add Station
@@ -255,7 +298,7 @@ const StationsList = () => {
                 title="No charging stations found"
                 description="Get started by creating a new charging station."
                 action={
-                  canManageStations && (
+                  canCreateStations && (
                     <Button onClick={handleCreate}>
                       <PlusIcon className="h-4 w-4 mr-2" />
                       Add Station
@@ -310,6 +353,7 @@ const StationsList = () => {
                               onClick={() => {
                                 if (station.isActive) {
                                   setDeactId(station.id)
+                                  setDialogAction('deactivate')
                                   setDialogMsg("Are you sure you want to deactivate this station?")
                                   setDialogOpen(true)
                                 } else {
@@ -335,14 +379,25 @@ const StationsList = () => {
                             </Button>
                             
                             {/* Schedule Button */}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleSchedule(station)}
-                              title="Manage schedule"
-                            >
-                              <Cog6ToothIcon className="h-4 w-4" />
-                            </Button>
+                            {canManageSchedules ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSchedule(station)}
+                                title="Manage schedule"
+                              >
+                                <Cog6ToothIcon className="h-4 w-4" />
+                              </Button>
+                            ) : isBackoffice ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSchedule(station)}
+                                title="View schedule (read-only)"
+                              >
+                                <Cog6ToothIcon className="h-4 w-4" />
+                              </Button>
+                            ) : null}
                             
                             {/* Delete Button */}
                             {isBackoffice && (
@@ -350,8 +405,9 @@ const StationsList = () => {
                                 variant="danger"
                                 size="sm"
                                 onClick={() => {
-                                  setDeactId(station.id)
-                                  setDialogMsg("Are you sure you want to delete this station? This action cannot be undone.")
+                                  setDeleteId(station.id)
+                                  setDialogAction('delete')
+                                  setDialogMsg("Are you sure you want to permanently delete this station? This action cannot be undone.")
                                   setDialogOpen(true)
                                 }}
                                 title="Delete station permanently"
@@ -479,26 +535,55 @@ const StationsList = () => {
       <Modal
         isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}
-        title={`Schedule - ${selectedStation?.name}`}
+        title={`${canManageSchedules ? 'Manage' : 'View'} Schedule - ${selectedStation?.name}`}
         size="xl"
       >
-        <StationScheduleEditor
-          station={selectedStation}
-          onClose={() => setIsScheduleModalOpen(false)}
-        />
+        {canManageSchedules ? (
+          <StationScheduleEditor
+            station={selectedStation}
+            onClose={() => setIsScheduleModalOpen(false)}
+          />
+        ) : (
+          <StationScheduleViewer
+            station={selectedStation}
+            onClose={() => setIsScheduleModalOpen(false)}
+          />
+        )}
       </Modal>
 
       {/* Confirmation Dialog */}
-      <ConfirmDialog
-        title={dialogMsg.includes("delete") ? "Delete Station" : "Deactivate Station"}
-        message={dialogMsg}
-        isOpen={dialogOpen}
-        onCancel={() => { setDialogOpen(false); setDeactId(null) }}
-        onConfirm={async () => {
-          if (!deactId) { setDialogOpen(false); return }
-          await handleDeactivate(deactId)
-        }}
-      />
+      {dialogOpen && (
+        <ConfirmDialog
+          title={
+            dialogAction === 'delete' ? "Delete Station" : 
+            dialogAction === 'validation_error' ? "Cannot Modify Station" :
+            "Deactivate Station"
+          }
+          message={dialogMsg}
+          isOpen={dialogOpen}
+          onCancel={dialogAction === 'validation_error' ? undefined : () => { 
+            setDialogOpen(false); 
+            setDeactId(null); 
+            setDeleteId(null);
+            setDialogAction(null);
+          }}
+          onConfirm={async () => {
+            if (dialogAction === 'delete' && deleteId) {
+              await handleDelete(deleteId)
+            } else if (dialogAction === 'deactivate' && deactId) {
+              await handleDeactivate(deactId)
+            } else if (dialogAction === 'validation_error') {
+              // For validation errors, just close the dialog
+              setDialogOpen(false)
+              setDialogAction(null)
+            } else {
+              setDialogOpen(false)
+            }
+          }}
+          confirmText={dialogAction === 'validation_error' ? 'OK' : undefined}
+          cancelText={dialogAction === 'validation_error' ? undefined : 'Cancel'}
+        />
+      )}
       </div>
     </div>
   )

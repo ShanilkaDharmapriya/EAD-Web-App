@@ -211,6 +211,8 @@ const BookingsList = () => {
   }
 
   const stations = stationsData?.data?.items || []
+  // Filter out inactive stations for EV owners
+  const activeStations = stations.filter(station => station.isActive)
   // For EV Owner bookings, data is directly an array, not wrapped in items
   const bookings = bookingsData?.data?.items || bookingsData?.data || []
   const totalPages = bookingsData?.data?.totalPages || 1
@@ -252,7 +254,7 @@ const BookingsList = () => {
               onChange={(e) => setFilters({ ...filters, stationId: e.target.value })}
               options={[
                 { value: '', label: 'All Stations' },
-                ...stations.map(station => ({
+                ...activeStations.map(station => ({
                   value: station.id,
                   label: station.name
                 }))
@@ -334,7 +336,7 @@ const BookingsList = () => {
                                 >
                                   <PencilIcon className="h-4 w-4" />
                                 </LoadingButton>
-                                {booking.status === 'Pending' && (isBackoffice || user?.role === 'StationOperator') && (
+                                {booking.status === 'Pending' && user?.role === 'StationOperator' && (
                                   <LoadingButton
                                     variant="success"
                                     size="sm"
@@ -390,7 +392,7 @@ const BookingsList = () => {
             label="Charging Station"
             {...register('stationId')}
             error={errors.stationId?.message}
-            options={stations.map(station => ({
+            options={activeStations.map(station => ({
               value: station.id,
               label: `${station.name} (${station.type}) - ${station.availableSlots}/${station.totalSlots} slots`
             }))}

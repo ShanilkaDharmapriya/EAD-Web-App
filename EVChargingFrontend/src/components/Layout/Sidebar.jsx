@@ -27,6 +27,33 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     item.roles.includes(user?.role)
   )
 
+  // Get role-specific title
+  const getRoleTitle = (role) => {
+    switch (role) {
+      case 'Backoffice':
+        return 'Admin Dashboard'
+      case 'StationOperator':
+        return 'Station Management'
+      case 'EVOwner':
+        return 'My Dashboard'
+      default:
+        return 'Charging Admin'
+    }
+  }
+
+  const getRoleSubtitle = (role) => {
+    switch (role) {
+      case 'Backoffice':
+        return 'Management System'
+      case 'StationOperator':
+        return 'Station Operations'
+      case 'EVOwner':
+        return 'Booking System'
+      default:
+        return 'Management System'
+    }
+  }
+
   return (
     <>
       {/* Mobile sidebar */}
@@ -41,8 +68,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                 </div>
               </div>
               <div className="ml-3">
-                <h1 className="text-sm font-semibold text-slate-900">Charging Admin</h1>
-                <p className="text-xs text-slate-500">Management System</p>
+                <h1 className="text-sm font-semibold text-slate-900">{getRoleTitle(user?.role)}</h1>
+                <p className="text-xs text-slate-500">{getRoleSubtitle(user?.role)}</p>
               </div>
             </div>
             <button
@@ -103,8 +130,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                 </div>
               </div>
               <div className="ml-3">
-                <h1 className="text-sm font-semibold text-slate-900">Charging Admin</h1>
-                <p className="text-xs text-slate-500">Management System</p>
+                <h1 className="text-sm font-semibold text-slate-900">{getRoleTitle(user?.role)}</h1>
+                <p className="text-xs text-slate-500">{getRoleSubtitle(user?.role)}</p>
               </div>
             </div>
           </div>

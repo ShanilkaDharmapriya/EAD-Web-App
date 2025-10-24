@@ -7,7 +7,7 @@ type Props = {
   cancelText?: string
   isOpen: boolean
   onConfirm: () => void
-  onCancel: () => void
+  onCancel?: () => void
 }
 export default function ConfirmDialog({ title, message, confirmText="Confirm", cancelText="Cancel", isOpen, onConfirm, onCancel }: Props) {
   const titleId = useId()
@@ -18,7 +18,9 @@ export default function ConfirmDialog({ title, message, confirmText="Confirm", c
         <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
         <p className="mt-2 text-sm text-gray-600">{message}</p>
         <div className="mt-6 flex justify-end gap-3">
-          <button className="rounded-xl border px-4 py-2" onClick={onCancel} aria-label="Cancel">{cancelText}</button>
+          {onCancel && (
+            <button className="rounded-xl border px-4 py-2" onClick={onCancel} aria-label="Cancel">{cancelText}</button>
+          )}
           <button className="rounded-xl px-4 py-2 bg-red-600 text-white hover:bg-red-700" onClick={onConfirm} aria-label={confirmText}>{confirmText}</button>
         </div>
       </div>

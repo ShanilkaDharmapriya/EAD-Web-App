@@ -25,6 +25,18 @@ export const usersAPI = {
     return response.data
   },
 
+  // Deactivate user
+  deactivateUser: async (id) => {
+    const response = await api.post(`/api/user/${id}/deactivate`)
+    return response.data
+  },
+
+  // Activate user
+  activateUser: async (id) => {
+    const response = await api.post(`/api/user/${id}/activate`)
+    return response.data
+  },
+
   // Delete user
   deleteUser: async (id) => {
     const response = await api.delete(`/api/user/${id}`)

@@ -32,14 +32,16 @@ const Dashboard = () => {
   })
 
   const { data: stationsData } = useQuery({
-    queryKey: ['stations'],
-    queryFn: () => stationsAPI.getStations()
+    queryKey: ['stations', user?.id],
+    queryFn: () => stationsAPI.getStations({ 
+      operatorId: user?.role === 'StationOperator' ? user.id : undefined 
+    })
   })
 
   const { data: bookingsData } = useQuery({
     queryKey: ['bookings', { page: 1, size: 5 }],
-    queryFn: () => bookingsAPI.getOwnerBookings(user?.nic || '', { page: 1, size: 5 }),
-    enabled: !!user?.nic
+    queryFn: () => bookingsAPI.getBookings({ page: 1, size: 5 }),
+    enabled: user?.role === 'StationOperator' || user?.role === 'Backoffice'
   })
 
   const stats = [
@@ -49,7 +51,8 @@ const Dashboard = () => {
       icon: UsersIcon,
       color: 'text-blue-600',
       bgColor: 'bg-gradient-to-br from-blue-50 to-blue-100',
-      enabled: isBackoffice
+      enabled: isBackoffice,
+      description: 'System administrators and staff'
     },
     {
       name: 'EV Owners',
@@ -57,23 +60,26 @@ const Dashboard = () => {
       icon: UserGroupIcon,
       color: 'text-violet-600',
       bgColor: 'bg-gradient-to-br from-violet-50 to-violet-100',
-      enabled: isBackoffice
+      enabled: isBackoffice,
+      description: 'Registered electric vehicle owners'
     },
     {
       name: 'Charging Stations',
-      value: stationsData?.data?.length || 0,
+      value: stationsData?.data?.items?.filter(station => station.isActive)?.length || stationsData?.data?.filter(station => station.isActive)?.length || 0,
       icon: BuildingOfficeIcon,
       color: 'text-violet-600',
       bgColor: 'bg-gradient-to-br from-violet-50 to-violet-100',
-      enabled: true
+      enabled: true,
+      description: 'Active charging points'
     },
     {
       name: 'Recent Bookings',
-      value: bookingsData?.data?.length || 0,
+      value: bookingsData?.data?.items?.length || bookingsData?.data?.length || 0,
       icon: CalendarDaysIcon,
       color: 'text-green-600',
       bgColor: 'bg-gradient-to-br from-green-50 to-green-100',
-      enabled: true
+      enabled: true,
+      description: 'Current session bookings'
     }
   ]
 
@@ -187,10 +193,11 @@ const Dashboard = () => {
                       <stat.icon className="h-6 w-6" />
                     </div>
                   </div>
-                  <div className="flex items-center text-sm text-slate-500">
-                    <span className="text-emerald-600 font-medium">+12%</span>
-                    <span className="ml-1">from last month</span>
-                  </div>
+                  {stat.description && (
+                    <div className="mt-3">
+                      <p className="text-xs text-slate-500 leading-relaxed">{stat.description}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -261,8 +268,57 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* Admin Analytics - Only for Backoffice */}
+        {isBackoffice && (
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-lg p-8">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">System Analytics</h3>
+                <p className="text-sm text-slate-500 mt-1">Key performance indicators and insights</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-blue-700">Active Sessions</span>
+                  <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                </div>
+                <p className="text-2xl font-bold text-blue-900">24</p>
+                <p className="text-xs text-blue-600 mt-2">Currently charging vehicles</p>
+              </div>
+              
+              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-emerald-700">Revenue</span>
+                  <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
+                </div>
+                <p className="text-2xl font-bold text-emerald-900">$12,450</p>
+                <p className="text-xs text-emerald-600 mt-2">Total earnings this month</p>
+              </div>
+              
+              <div className="bg-gradient-to-br from-violet-50 to-violet-100 border border-violet-200 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-violet-700">Efficiency</span>
+                  <div className="h-2 w-2 rounded-full bg-violet-500"></div>
+                </div>
+                <p className="text-2xl font-bold text-violet-900">94%</p>
+                <p className="text-xs text-violet-600 mt-2">Station utilization rate</p>
+              </div>
+              
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-orange-700">Avg. Session</span>
+                  <div className="h-2 w-2 rounded-full bg-orange-500"></div>
+                </div>
+                <p className="text-2xl font-bold text-orange-900">2.4h</p>
+                <p className="text-xs text-orange-600 mt-2">Average charging duration</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Recent Bookings */}
-        {bookingsData?.data && bookingsData.data.length > 0 && (
+        {bookingsData?.data && (bookingsData.data.items?.length > 0 || bookingsData.data.length > 0) && (
           <div className="bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden">
             <div className="p-8 border-b border-slate-200">
               <div className="flex items-center justify-between">
@@ -284,7 +340,7 @@ const Dashboard = () => {
                   </tr>
                 </Table.Header>
                 <Table.Body>
-                  {bookingsData.data.map((booking) => (
+                  {(bookingsData.data.items || bookingsData.data).map((booking) => (
                     <Table.Row key={booking.id} className="hover:bg-slate-50 transition-all duration-200 border-b border-slate-100">
                       <Table.Cell className="text-sm text-slate-900 font-medium py-4">{booking.stationName || 'N/A'}</Table.Cell>
                       <Table.Cell className="text-sm text-slate-600 py-4">

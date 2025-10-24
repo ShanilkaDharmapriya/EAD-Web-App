@@ -121,7 +121,7 @@ src/
 - Can create/edit/delete users
 - Can create/edit/delete stations
 - Can manage EV owners (create, edit, deactivate, reactivate)
-- Can approve bookings
+- Cannot approve bookings (only StationOperator can approve)
 
 ### StationOperator Role
 - Read-only access to users
@@ -165,7 +165,7 @@ The frontend integrates with the following backend endpoints:
 - Create bookings with 7-day window limit
 - 12-hour modification rule enforcement
 - Status-based filtering and actions
-- Role-based approval workflow
+- Role-based approval workflow (StationOperator only)
 
 ## Form Validation
 

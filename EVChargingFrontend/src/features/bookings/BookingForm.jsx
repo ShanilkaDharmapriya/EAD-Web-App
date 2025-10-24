@@ -127,6 +127,9 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
   if (!isOpen) return null
 
   const stations = stationsData?.data?.items || []
+  
+  // Filter out inactive stations for EV owners
+  const activeStations = stations.filter(station => station.isActive)
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -134,7 +137,7 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
         label="Charging Station"
         {...register('stationId')}
         error={errors.stationId?.message}
-        options={stations.map(station => ({
+        options={activeStations.map(station => ({
           value: station.id,
           label: `${station.name} (${station.type}) - ${station.availableSlots}/${station.totalSlots} slots`
         }))}

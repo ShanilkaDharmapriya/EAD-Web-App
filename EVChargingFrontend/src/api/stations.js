@@ -33,21 +33,45 @@ export const stationsAPI = {
     return response.data
   },
 
+  // Get station schedule (read-only)
+  getStationSchedule: async (id) => {
+    const response = await api.get(`/api/ChargingStation/${id}/schedule`)
+    return response.data
+  },
+
   // Update station schedule
   updateStationSchedule: async (id, scheduleData) => {
     const response = await api.put(`/api/ChargingStation/${id}/schedule`, scheduleData)
     return response.data
   },
 
-  // Deactivate station
+  // Deactivate station (soft delete - sets isActive to false)
   deactivateStation: async (id) => {
-    const response = await api.delete(`/api/ChargingStation/${id}`)
-    return response.data
+    try {
+      const response = await api.patch(`/api/ChargingStation/${id}/deactivate`)
+      return response.data
+    } catch (error) {
+      // Re-throw the error with additional context
+      error.operation = 'deactivate'
+      throw error
+    }
   },
 
   // Activate station
   activateStation: async (id) => {
     const response = await api.post(`/api/ChargingStation/${id}/activate`)
     return response.data
+  },
+
+  // Permanently delete station (Backoffice only)
+  deleteStation: async (id) => {
+    try {
+      const response = await api.delete(`/api/ChargingStation/${id}`)
+      return response.data
+    } catch (error) {
+      // Re-throw the error with additional context
+      error.operation = 'delete'
+      throw error
+    }
   },
 }
