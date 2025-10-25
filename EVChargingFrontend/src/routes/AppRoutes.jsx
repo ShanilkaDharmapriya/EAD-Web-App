@@ -14,6 +14,7 @@ import StationsList from '../features/stations/StationsList'
 import BookingsList from '../features/bookings/BookingsList'
 import BookingDetails from '../features/bookings/BookingDetails'
 import OwnerDashboard from '../features/bookings/OwnerDashboard'
+import SlotBoardPage from '../pages/SlotBoardPage'
 import NotFound from '../pages/NotFound'
 
 const AppRoutes = () => {
@@ -48,6 +49,13 @@ const AppRoutes = () => {
               <Route path="bookings" element={<BookingsList />} />
               <Route path="bookings/:id" element={<BookingDetails />} />
               <Route path="owner-dashboard" element={<OwnerDashboard />} />
+              
+              {/* Station Operator only routes */}
+              <Route path="slot-board" element={
+                <RoleGuard allowedRoles={['StationOperator']}>
+                  <SlotBoardPage />
+                </RoleGuard>
+              } />
             </Route>
             
             {/* 404 Route */}

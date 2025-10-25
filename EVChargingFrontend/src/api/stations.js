@@ -74,4 +74,32 @@ export const stationsAPI = {
       throw error
     }
   },
+
+  // Get station utilization data
+  getStationUtilization: async (id) => {
+    const response = await api.get(`/api/ChargingStation/${id}/utilization`)
+    return response.data
+  },
+
+  // Get station availability data
+  getStationAvailability: async (id, startDate, days = 7) => {
+    const response = await api.get(`/api/StationAvailability/${id}/availability`, {
+      params: { start: startDate, days }
+    })
+    return response.data
+  },
+
+  // Get station schedule overrides
+  getStationOverrides: async (id, startDate, days = 7) => {
+    const response = await api.get(`/api/StationAvailability/${id}/schedule/overrides`, {
+      params: { start: startDate, days }
+    })
+    return response.data
+  },
+
+  // Create schedule override
+  createScheduleOverride: async (id, overrideData) => {
+    const response = await api.post(`/api/StationAvailability/${id}/schedule/overrides`, overrideData)
+    return response.data
+  },
 }

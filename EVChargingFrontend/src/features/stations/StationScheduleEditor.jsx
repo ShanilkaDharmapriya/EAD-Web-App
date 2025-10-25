@@ -1,231 +1,252 @@
-import { useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import dayjs from 'dayjs'
+import React, { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { stationsAPI } from '../../api/stations'
 import { useToast } from '../../hooks/useToast'
+import { getErrorMessage } from '../../utils/errors'
+import Card from '../../components/UI/Card'
 import Button from '../../components/UI/Button'
 import Input from '../../components/UI/Input'
-import Table from '../../components/UI/Table'
-import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { 
+  ClockIcon,
+  CalendarDaysIcon,
+  CheckIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline'
 
-const scheduleSchema = z.object({
-  date: z.date(),
-  open: z.string().min(1, 'Opening time is required'),
-  close: z.string().min(1, 'Closing time is required'),
-  slotsAvailable: z.number().min(0, 'Slots available must be 0 or greater'),
-}).refine((data) => {
-  const openTime = dayjs(`2000-01-01 ${data.open}`)
-  const closeTime = dayjs(`2000-01-01 ${data.close}`)
-  return closeTime.isAfter(openTime)
-}, {
-  message: "Closing time must be after opening time",
-  path: ["close"]
-})
-
-const StationScheduleEditor = ({ station, onClose }) => {
-  const [schedules, setSchedules] = useState([])
+const StationScheduleEditor = ({ stationId, onClose }) => {
   const { showSuccess, showError } = useToast()
   const queryClient = useQueryClient()
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(scheduleSchema),
+  const [schedule, setSchedule] = useState({
+    openTime: '08:00',
+    closeTime: '20:00'
   })
 
-  // Update schedule mutation
+  const { data: stationData, isLoading } = useQuery({
+    queryKey: ['station', stationId],
+    queryFn: () => stationsAPI.getStation(stationId),
+    enabled: !!stationId,
+    onSuccess: (data) => {
+      if (data?.data) {
+        setSchedule({
+          openTime: data.data.openTime || '08:00',
+          closeTime: data.data.closeTime || '20:00'
+        })
+      }
+    }
+  })
+
   const updateScheduleMutation = useMutation({
-    mutationFn: (data) => stationsAPI.updateStationSchedule(station.id, data),
+    mutationFn: (scheduleData) => stationsAPI.updateStationSchedule(stationId, scheduleData),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['station', stationId] })
       queryClient.invalidateQueries({ queryKey: ['stations'] })
       showSuccess('Success', 'Station schedule updated successfully')
       onClose()
     },
     onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to update schedule')
-    },
+      showError('Error', getErrorMessage(error))
+    }
   })
 
-  useEffect(() => {
-    if (station?.schedule) {
-      setSchedules(station.schedule)
-    }
-  }, [station])
-
-  const addSchedule = (data) => {
-    const newSchedule = {
-      date: dayjs(data.date).format('YYYY-MM-DD'),
-      open: data.open,
-      close: data.close,
-      slotsAvailable: data.slotsAvailable,
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    
+    // Validate times
+    if (schedule.openTime >= schedule.closeTime) {
+      showError('Error', 'Opening time must be before closing time')
+      return
     }
 
-    // Check if date already exists
-    const existingIndex = schedules.findIndex(s => s.date === newSchedule.date)
-    if (existingIndex >= 0) {
-      // Update existing schedule
-      const updatedSchedules = [...schedules]
-      updatedSchedules[existingIndex] = newSchedule
-      setSchedules(updatedSchedules)
-    } else {
-      // Add new schedule
-      setSchedules([...schedules, newSchedule])
+    // Validate working hours (minimum 1 hour, maximum 24 hours)
+    const openTime = new Date(`2000-01-01T${schedule.openTime}:00`)
+    const closeTime = new Date(`2000-01-01T${schedule.closeTime}:00`)
+    const diffHours = (closeTime - openTime) / (1000 * 60 * 60)
+    
+    if (diffHours < 1) {
+      showError('Error', 'Station must be open for at least 1 hour')
+      return
     }
 
-    reset()
-  }
-
-  const removeSchedule = (index) => {
-    const updatedSchedules = schedules.filter((_, i) => i !== index)
-    setSchedules(updatedSchedules)
-  }
-
-  const onSubmit = () => {
-    // Transform schedules to match backend format
-    const scheduleData = {
-      schedule: schedules.map(schedule => ({
-        date: dayjs(schedule.date).format('YYYY-MM-DD'),
-        open: schedule.open,
-        close: schedule.close,
-        slotsAvailable: schedule.slotsAvailable
-      }))
+    if (diffHours > 24) {
+      showError('Error', 'Station cannot be open for more than 24 hours')
+      return
     }
-    updateScheduleMutation.mutate(scheduleData)
+
+    updateScheduleMutation.mutate({
+      openTime: schedule.openTime,
+      closeTime: schedule.closeTime
+    })
   }
 
-  const validateSlotsAvailable = (value, totalSlots) => {
-    const numValue = parseInt(value)
-    return numValue <= totalSlots
+  const handleTimeChange = (field, value) => {
+    setSchedule(prev => ({
+      ...prev,
+      [field]: value
+    }))
   }
 
-  if (!station) return null
+  if (isLoading) {
+    return (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium text-gray-900">Station Schedule</h3>
-        <p className="text-sm text-gray-500">
-          Manage daily schedules for {station.name}. Total slots: {station.totalSlots}
-        </p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Edit Station Schedule</h2>
+          <p className="text-sm text-gray-500">{stationData?.data?.name}</p>
+        </div>
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
       </div>
 
-      {/* Add Schedule Form */}
-      <div className="bg-gray-50 p-4 rounded-lg">
-        <h4 className="text-sm font-medium text-gray-900 mb-3">Add/Update Schedule</h4>
-        <form onSubmit={handleSubmit(addSchedule)} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Input
-            label="Date"
-            type="date"
-            {...register('date', { valueAsDate: true })}
-            error={errors.date?.message}
-            min={dayjs().format('YYYY-MM-DD')}
-          />
+      {/* Current Schedule Info */}
+      <Card>
+        <div className="p-4">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Current Schedule</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <ClockIcon className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Opening Time</p>
+                <p className="text-lg font-semibold">{schedule.openTime}</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <ClockIcon className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Closing Time</p>
+                <p className="text-lg font-semibold">{schedule.closeTime}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
-          <Input
-            label="Opening Time"
-            type="time"
-            {...register('open')}
-            error={errors.open?.message}
-          />
-
-          <Input
-            label="Closing Time"
-            type="time"
-            {...register('close')}
-            error={errors.close?.message}
-          />
-
-          <div className="flex items-end">
-            <Input
-              label="Slots Available"
-              type="number"
-              {...register('slotsAvailable', { 
-                valueAsNumber: true,
-                validate: (value) => validateSlotsAvailable(value, station.totalSlots) || `Must be ≤ ${station.totalSlots}`
-              })}
-              error={errors.slotsAvailable?.message}
-              min="0"
-              max={station.totalSlots}
-            />
+      {/* Schedule Editor Form */}
+      <Card>
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Update Working Hours</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Set the daily operating hours for this charging station. Bookings can only be made within these hours.
+            </p>
           </div>
 
-          <div className="flex items-end">
-            <Button type="submit" size="sm">
-              <PlusIcon className="h-4 w-4 mr-1" />
-              Add
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Opening Time
+              </label>
+              <Input
+                type="time"
+                value={schedule.openTime}
+                onChange={(e) => handleTimeChange('openTime', e.target.value)}
+                className="w-full"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Station opens at this time daily
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Closing Time
+              </label>
+              <Input
+                type="time"
+                value={schedule.closeTime}
+                onChange={(e) => handleTimeChange('closeTime', e.target.value)}
+                className="w-full"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Station closes at this time daily
+              </p>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Schedule Preview</h4>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <CalendarDaysIcon className="h-5 w-5 text-gray-400" />
+                <span className="text-sm text-gray-600">Daily: {schedule.openTime} - {schedule.closeTime}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <ClockIcon className="h-5 w-5 text-gray-400" />
+                <span className="text-sm text-gray-600">
+                  Duration: {(() => {
+                    const openTime = new Date(`2000-01-01T${schedule.openTime}:00`)
+                    const closeTime = new Date(`2000-01-01T${schedule.closeTime}:00`)
+                    const diffHours = (closeTime - openTime) / (1000 * 60 * 60)
+                    return `${diffHours} hours`
+                  })()}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Important Notes */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <XMarkIcon className="h-5 w-5 text-yellow-400" />
+              </div>
+              <div className="ml-3">
+                <h4 className="text-sm font-medium text-yellow-800">Important Notes</h4>
+                <div className="mt-2 text-sm text-yellow-700">
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Changes will affect all future bookings</li>
+                    <li>Existing approved bookings will not be affected</li>
+                    <li>New bookings can only be made within working hours</li>
+                    <li>Station must be open for at least 1 hour daily</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={updateScheduleMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={updateScheduleMutation.isPending}
+              className="flex items-center space-x-2"
+            >
+              {updateScheduleMutation.isPending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Updating...</span>
+                </>
+              ) : (
+                <>
+                  <CheckIcon className="h-4 w-4" />
+                  <span>Update Schedule</span>
+                </>
+              )}
             </Button>
           </div>
         </form>
-      </div>
-
-      {/* Schedule List */}
-      {schedules.length > 0 ? (
-        <Table>
-          <Table.Header>
-            <tr>
-              <Table.Head>Date</Table.Head>
-              <Table.Head>Opening Time</Table.Head>
-              <Table.Head>Closing Time</Table.Head>
-              <Table.Head>Slots Available</Table.Head>
-              <Table.Head>Actions</Table.Head>
-            </tr>
-          </Table.Header>
-          <Table.Body>
-            {schedules
-              .sort((a, b) => new Date(a.date) - new Date(b.date))
-              .map((schedule, index) => (
-                <Table.Row key={`${schedule.date}-${index}`}>
-                  <Table.Cell>
-                    {dayjs(schedule.date).format('MMM DD, YYYY')}
-                  </Table.Cell>
-                  <Table.Cell>{schedule.open}</Table.Cell>
-                  <Table.Cell>{schedule.close}</Table.Cell>
-                  <Table.Cell>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      schedule.slotsAvailable > 0 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {schedule.slotsAvailable}
-                    </span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => removeSchedule(index)}
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </Button>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-          </Table.Body>
-        </Table>
-      ) : (
-        <div className="text-center py-8 text-gray-500">
-          No schedules added yet. Add a schedule above to get started.
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-        <Button variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          onClick={onSubmit}
-          loading={updateScheduleMutation.isPending}
-        >
-          Save Schedule
-        </Button>
-      </div>
+      </Card>
     </div>
   )
 }

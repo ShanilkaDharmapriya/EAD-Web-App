@@ -19,21 +19,10 @@ import Badge from '../../components/UI/Badge'
 import Pagination from '../../components/UI/Pagination'
 import LoadingButton from '../../components/ui/LoadingButton'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import SimpleBookingForm from './SimpleBookingForm'
 import { PlusIcon, PencilIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline'
 
-const bookingSchema = z.object({
-  stationId: z.string().min(1, 'Please select a station'),
-  reservationDate: z.string().min(1, 'Please select a date'),
-  reservationTime: z.string().min(1, 'Please select a time'),
-}).refine((data) => {
-  const reservationDateTime = dayjs(`${data.reservationDate} ${data.reservationTime}`)
-  const now = dayjs()
-  const maxDate = now.add(7, 'days')
-  return reservationDateTime.isAfter(now) && reservationDateTime.isBefore(maxDate)
-}, {
-  message: "Reservation must be in the future and within 7 days from now",
-  path: ["reservationDate"]
-})
+// Removed old booking schema - now using SimpleBookingForm
 
 const BookingsList = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -53,14 +42,7 @@ const BookingsList = () => {
   const queryClient = useQueryClient()
   const isBackoffice = user?.role === 'Backoffice'
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(bookingSchema),
-  })
+  // Removed form handling - now using SimpleBookingForm
 
   // Fetch stations for dropdown
   const { data: stationsData } = useQuery({
@@ -96,34 +78,7 @@ const BookingsList = () => {
     },
   })
 
-  // Create booking mutation
-  const createMutation = useMutation({
-    mutationFn: bookingsAPI.createBooking,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookings'] })
-      showSuccess('Success', 'Booking created successfully')
-      setIsModalOpen(false)
-      reset()
-    },
-    onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to create booking')
-    },
-  })
-
-  // Update booking mutation
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => bookingsAPI.updateBooking(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookings'] })
-      showSuccess('Success', 'Booking updated successfully')
-      setIsModalOpen(false)
-      setEditingBooking(null)
-      reset()
-    },
-    onError: (error) => {
-      showError('Error', error.response?.data?.message || 'Failed to update booking')
-    },
-  })
+  // Booking mutations moved to SimpleBookingForm
 
   // Cancel booking mutation
   const cancelMutation = useMutation({
@@ -151,17 +106,11 @@ const BookingsList = () => {
 
   const handleCreate = () => {
     setEditingBooking(null)
-    reset()
     setIsModalOpen(true)
   }
 
   const handleEdit = (booking) => {
     setEditingBooking(booking)
-    reset({
-      stationId: booking.stationId,
-      reservationDate: dayjs(booking.reservationDateTime).format('YYYY-MM-DD'),
-      reservationTime: dayjs(booking.reservationDateTime).format('HH:mm'),
-    })
     setIsModalOpen(true)
   }
 
@@ -182,19 +131,7 @@ const BookingsList = () => {
     }
   }
 
-  const onSubmit = (data) => {
-    const reservationDateTime = dayjs(`${data.reservationDate} ${data.reservationTime}`).toISOString()
-    const bookingData = {
-      stationId: data.stationId,
-      reservationDateTime: reservationDateTime,
-    }
-
-    if (editingBooking) {
-      updateMutation.mutate({ id: editingBooking.id, data: bookingData })
-    } else {
-      createMutation.mutate(bookingData)
-    }
-  }
+  // Form submission moved to SimpleBookingForm
 
   const getStatusBadge = (status) => {
     const statusMap = {
@@ -311,7 +248,16 @@ const BookingsList = () => {
                         {booking.stationName || 'N/A'}
                       </Table.Cell>
                       <Table.Cell>
-                        {dayjs(booking.reservationDateTime).format('MMM DD, YYYY HH:mm')}
+                        <div>
+                          <div className="font-medium">
+                            {dayjs(booking.reservationDateTime).format('MMM DD, YYYY HH:mm')}
+                          </div>
+                          {booking.endDateTime && (
+                            <div className="text-sm text-gray-500">
+                              to {dayjs(booking.endDateTime).format('HH:mm')}
+                            </div>
+                          )}
+                        </div>
                       </Table.Cell>
                       <Table.Cell>
                         {getStatusBadge(booking.status)}
@@ -380,65 +326,11 @@ const BookingsList = () => {
         </div>
       </Card>
 
-      {/* Booking Modal */}
-      <Modal
+      {/* Simple Booking Form */}
+      <SimpleBookingForm
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingBooking ? 'Edit Booking' : 'Create Booking'}
-        size="md"
-      >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Select
-            label="Charging Station"
-            {...register('stationId')}
-            error={errors.stationId?.message}
-            options={activeStations.map(station => ({
-              value: station.id,
-              label: `${station.name} (${station.type}) - ${station.availableSlots}/${station.totalSlots} slots`
-            }))}
-            placeholder="Select a station"
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Reservation Date"
-              type="date"
-              {...register('reservationDate')}
-              error={errors.reservationDate?.message}
-              min={dayjs().format('YYYY-MM-DD')}
-              max={dayjs().add(7, 'days').format('YYYY-MM-DD')}
-            />
-            
-            <Input
-              label="Reservation Time"
-              type="time"
-              {...register('reservationTime')}
-              error={errors.reservationTime?.message}
-            />
-          </div>
-
-          <div className="text-sm text-gray-500">
-            <p>• Bookings must be made at least 12 hours in advance</p>
-            <p>• Reservations can only be made up to 7 days in advance</p>
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              loading={createMutation.isPending || updateMutation.isPending}
-            >
-              {editingBooking ? 'Update' : 'Create'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      />
 
       {/* Cancel Confirmation Dialog */}
       <ConfirmDialog

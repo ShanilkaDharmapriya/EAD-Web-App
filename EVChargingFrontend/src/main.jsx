@@ -1,6 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+
+// Configure dayjs globally
+dayjs.extend(utc)
 
 // Global error handler to catch unhandled errors
 window.addEventListener('unhandledrejection', (event) => {

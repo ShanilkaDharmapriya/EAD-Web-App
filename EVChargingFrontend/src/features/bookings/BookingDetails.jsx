@@ -75,11 +75,19 @@ const BookingDetails = () => {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-500">Reservation Time</label>
+              <label className="text-sm font-medium text-gray-500">Start Time</label>
               <p className="text-sm text-gray-900">
                 {new Date(booking.reservationDateTime).toLocaleString()}
               </p>
             </div>
+            {booking.endDateTime && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">End Time</label>
+                <p className="text-sm text-gray-900">
+                  {new Date(booking.endDateTime).toLocaleString()}
+                </p>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-gray-500">Station</label>
               <p className="text-sm text-gray-900">

@@ -21,10 +21,15 @@ import {
   PlusIcon, 
   PencilIcon, 
   TrashIcon, 
-  Cog6ToothIcon
+  Cog6ToothIcon,
+  ChartBarIcon,
+  ClockIcon,
+  CalendarDaysIcon
 } from '@heroicons/react/24/outline'
 import StationScheduleEditor from './StationScheduleEditor'
 import StationScheduleViewer from './StationScheduleViewer'
+import StationUtilization from './StationUtilization'
+import OperatorSlotBoard from './OperatorSlotBoard'
 
 const stationSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),
@@ -39,6 +44,8 @@ const stationSchema = z.object({
 const StationsList = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
+  const [isUtilizationModalOpen, setIsUtilizationModalOpen] = useState(false)
+  const [isSlotBoardModalOpen, setIsSlotBoardModalOpen] = useState(false)
   const [editingStation, setEditingStation] = useState(null)
   const [selectedStation, setSelectedStation] = useState(null)
   const [deactId, setDeactId] = useState(null)
@@ -213,6 +220,16 @@ const StationsList = () => {
   const handleSchedule = (station) => {
     setSelectedStation(station)
     setIsScheduleModalOpen(true)
+  }
+
+  const handleUtilization = (station) => {
+    setSelectedStation(station)
+    setIsUtilizationModalOpen(true)
+  }
+
+  const handleSlotBoard = (station) => {
+    setSelectedStation(station)
+    setIsSlotBoardModalOpen(true)
   }
 
   const handleDeactivate = async (stationId) => {
@@ -398,6 +415,30 @@ const StationsList = () => {
                                 <Cog6ToothIcon className="h-4 w-4" />
                               </Button>
                             ) : null}
+
+                            {/* Utilization Button */}
+                            {(isBackoffice || isStationOperator) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUtilization(station)}
+                                title="View utilization data"
+                              >
+                                <ChartBarIcon className="h-4 w-4" />
+                              </Button>
+                            )}
+
+                            {/* Slot Board Button */}
+                            {isStationOperator && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSlotBoard(station)}
+                                title="Open slot board"
+                              >
+                                <CalendarDaysIcon className="h-4 w-4" />
+                              </Button>
+                            )}
                             
                             {/* Delete Button */}
                             {isBackoffice && (
@@ -549,6 +590,32 @@ const StationsList = () => {
             onClose={() => setIsScheduleModalOpen(false)}
           />
         )}
+      </Modal>
+
+      {/* Utilization Modal */}
+      <Modal
+        isOpen={isUtilizationModalOpen}
+        onClose={() => setIsUtilizationModalOpen(false)}
+        title={`Utilization - ${selectedStation?.name}`}
+        size="4xl"
+      >
+        <StationUtilization
+          stationId={selectedStation?.id}
+          onClose={() => setIsUtilizationModalOpen(false)}
+        />
+      </Modal>
+
+      {/* Slot Board Modal */}
+      <Modal
+        isOpen={isSlotBoardModalOpen}
+        onClose={() => setIsSlotBoardModalOpen(false)}
+        title={`Slot Board - ${selectedStation?.name}`}
+        size="6xl"
+      >
+        <OperatorSlotBoard
+          stationId={selectedStation?.id}
+          onClose={() => setIsSlotBoardModalOpen(false)}
+        />
       </Modal>
 
       {/* Confirmation Dialog */}

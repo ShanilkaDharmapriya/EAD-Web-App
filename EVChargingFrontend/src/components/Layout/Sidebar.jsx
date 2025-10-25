@@ -7,7 +7,8 @@ import {
   BuildingOfficeIcon,
   CalendarDaysIcon,
   ChartBarIcon,
-  XMarkIcon
+  XMarkIcon,
+  Squares2X2Icon
 } from '@heroicons/react/24/outline'
 
 const navigation = [
@@ -15,6 +16,7 @@ const navigation = [
   { name: 'Users', href: '/users', icon: UsersIcon, roles: ['Backoffice'] },
   { name: 'EV Owners', href: '/owners', icon: UserGroupIcon, roles: ['Backoffice'] },
   { name: 'Charging Stations', href: '/stations', icon: BuildingOfficeIcon, roles: ['Backoffice', 'StationOperator'] },
+  { name: 'Slot Board', href: '/slot-board', icon: Squares2X2Icon, roles: ['StationOperator'] },
   { name: 'Bookings', href: '/bookings', icon: CalendarDaysIcon, roles: ['Backoffice', 'StationOperator', 'EVOwner'] },
   { name: 'Owner Dashboard', href: '/owner-dashboard', icon: ChartBarIcon, roles: ['EVOwner'] },
 ]

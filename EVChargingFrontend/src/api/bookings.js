@@ -54,4 +54,22 @@ export const bookingsAPI = {
     const response = await api.post('/api/booking/complete', { qrPayload })
     return response.data
   },
+
+  // Debug authentication
+  debugAuth: async () => {
+    const response = await api.get('/api/booking/debug-auth')
+    return response.data
+  },
+
+  // Test booking creation
+  testBooking: async () => {
+    const response = await api.post('/api/booking/test-booking')
+    return response.data
+  },
+
+  // Get available time slots for a station
+  getAvailableSlots: async (stationId, date) => {
+    const response = await api.get(`/api/booking/availability/${stationId}?date=${date}`)
+    return response.data
+  },
 }
