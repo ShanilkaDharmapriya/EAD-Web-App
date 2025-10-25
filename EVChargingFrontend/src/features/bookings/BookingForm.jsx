@@ -8,7 +8,7 @@ import dayjs from 'dayjs'
 import { bookingsAPI } from '../../api/bookings'
 import { stationsAPI } from '../../api/stations'
 import { useToast } from '../../hooks/useToast'
-import { isWithin7Days, respects12HourRule, parseDateTime } from '../../utils/dateRules'
+import { isWithin7Days, respects12HourRule, parseDateTime, isWithinWorkingHours } from '../../utils/dateRules'
 import { useAvailability } from '../../hooks/useAvailability'
 import { getErrorMessage } from '../../utils/errors'
 import Button from '../../components/UI/Button'
@@ -22,20 +22,63 @@ const bookingSchema = z.object({
   startTime: z.string().min(1, 'Please select a start time'),
   endTime: z.string().min(1, 'Please select an end time'),
 }).superRefine((data, ctx) => {
-  const startDt = dayjs(`${data.reservationDate}T${data.startTime}`).utc()
-  const endDt = dayjs(`${data.reservationDate}T${data.endTime}`).utc()
+  // Use same timezone handling as form submission
+  const localStartDt = dayjs(`${data.reservationDate}T${data.startTime}`)
+  const localEndDt = dayjs(`${data.reservationDate}T${data.endTime}`)
+  const startDt = localStartDt.utc()
+  const endDt = localEndDt.utc()
   
+  // Validate 7-day window
   if (!isWithin7Days(startDt)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Reservation must be within the next 7 days.", path: ["reservationDate"] })
+    ctx.addIssue({ 
+      code: z.ZodIssueCode.custom, 
+      message: "Reservation must be within the next 7 days.", 
+      path: ["reservationDate"] 
+    })
   }
+  
+  // Validate 12-hour rule
   if (!respects12HourRule(startDt)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Reservations/changes must be at least 12 hours in advance.", path: ["startTime"] })
+    ctx.addIssue({ 
+      code: z.ZodIssueCode.custom, 
+      message: "Reservations must be at least 12 hours in advance.", 
+      path: ["startTime"] 
+    })
   }
+  
+  // Validate working hours
+  if (!isWithinWorkingHours(startDt)) {
+    ctx.addIssue({ 
+      code: z.ZodIssueCode.custom, 
+      message: "Start time must be between 6:00 AM and 10:00 PM.", 
+      path: ["startTime"] 
+    })
+  }
+  
+  if (!isWithinWorkingHours(endDt)) {
+    ctx.addIssue({ 
+      code: z.ZodIssueCode.custom, 
+      message: "End time must be between 6:00 AM and 10:00 PM.", 
+      path: ["endTime"] 
+    })
+  }
+  
+  // Validate time order
   if (endDt <= startDt) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "End time must be after start time.", path: ["endTime"] })
+    ctx.addIssue({ 
+      code: z.ZodIssueCode.custom, 
+      message: "End time must be after start time.", 
+      path: ["endTime"] 
+    })
   }
+  
+  // Validate duration
   if (endDt.diff(startDt, 'hours') > 8) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Booking duration cannot exceed 8 hours.", path: ["endTime"] })
+    ctx.addIssue({ 
+      code: z.ZodIssueCode.custom, 
+      message: "Booking duration cannot exceed 8 hours.", 
+      path: ["endTime"] 
+    })
   }
 })
 
@@ -44,29 +87,6 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
   const queryClient = useQueryClient()
   const { state: avail, loading: availLoading, error: availError, check } = useAvailability()
 
-  // Debug authentication
-  const debugAuth = async () => {
-    try {
-      const result = await bookingsAPI.debugAuth()
-      console.log('Auth debug result:', result)
-      showSuccess('Debug', 'Authentication info logged to console')
-    } catch (error) {
-      console.error('Auth debug error:', error)
-      showError('Debug Error', 'Failed to get authentication info')
-    }
-  }
-
-  // Test booking creation
-  const testBooking = async () => {
-    try {
-      const result = await bookingsAPI.testBooking()
-      console.log('Test booking result:', result)
-      showSuccess('Test Booking', 'Test booking completed - check console for details')
-    } catch (error) {
-      console.error('Test booking error:', error)
-      showError('Test Booking Error', error.response?.data?.message || 'Test booking failed')
-    }
-  }
 
   const {
     register,
@@ -78,14 +98,14 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
     resolver: zodResolver(bookingSchema),
     defaultValues: booking ? {
       stationId: booking.stationId,
-      reservationDate: dayjs(booking.reservationDateTime).format('YYYY-MM-DD'),
-      startTime: dayjs(booking.reservationDateTime).format('HH:mm'),
-      endTime: booking.endDateTime ? dayjs(booking.endDateTime).format('HH:mm') : dayjs(booking.reservationDateTime).add(1, 'hour').format('HH:mm'),
+      reservationDate: dayjs.utc(booking.reservationDateTime).format('YYYY-MM-DD'),
+      startTime: dayjs.utc(booking.reservationDateTime).format('HH:mm'),
+      endTime: booking.endDateTime ? dayjs.utc(booking.endDateTime).format('HH:mm') : dayjs.utc(booking.reservationDateTime).add(1, 'hour').format('HH:mm'),
     } : {
       stationId: '',
-      reservationDate: dayjs().format('YYYY-MM-DD'),
-      startTime: dayjs().add(1, 'hour').format('HH:mm'),
-      endTime: dayjs().add(2, 'hours').format('HH:mm'),
+      reservationDate: dayjs().utc().add(1, 'day').format('YYYY-MM-DD'), // Default to tomorrow
+      startTime: '10:00', // Default to 10 AM
+      endTime: '11:00', // Default to 11 AM (1 hour duration)
     }
   })
 
@@ -146,8 +166,11 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
   // Check availability when station/date/time changes
   const onDateTimeChange = async (stationId, date, startTime, endTime) => {
     if (stationId && date && startTime && endTime) {
-      const start = dayjs.utc(`${date}T${startTime}`)
-      const end = dayjs.utc(`${date}T${endTime}`)
+      // Use same timezone handling as form submission
+      const localStart = dayjs(`${date}T${startTime}`)
+      const localEnd = dayjs(`${date}T${endTime}`)
+      const start = localStart.utc()
+      const end = localEnd.utc()
       await check(stationId, start.toISOString(), end.toISOString())
     }
   }
@@ -166,10 +189,16 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
       return
     }
 
-    // Create proper date objects with explicit timezone handling
-    const startDate = dayjs.utc(`${data.reservationDate}T${data.startTime}`)
-    const endDate = dayjs.utc(`${data.reservationDate}T${data.endTime}`)
+    // Create date objects treating the input as local time, then convert to UTC
+    // This ensures the time represents the actual local time the user selected
+    const localStartDate = dayjs(`${data.reservationDate}T${data.startTime}`)
+    const localEndDate = dayjs(`${data.reservationDate}T${data.endTime}`)
     
+    // Convert to UTC for backend
+    const startDate = localStartDate.utc()
+    const endDate = localEndDate.utc()
+    
+    // Ensure dates are properly formatted for backend
     const bookingData = {
       stationId: data.stationId,
       reservationDateTime: startDate.toISOString(),
@@ -178,8 +207,10 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
 
     console.log('Form data:', data)
     console.log('Booking data being sent:', bookingData)
-    console.log('Start date:', startDate.toISOString())
-    console.log('End date:', endDate.toISOString())
+    console.log('Local start time:', localStartDate.format('YYYY-MM-DD HH:mm:ss'))
+    console.log('Local end time:', localEndDate.format('YYYY-MM-DD HH:mm:ss'))
+    console.log('UTC start time:', startDate.toISOString())
+    console.log('UTC end time:', endDate.toISOString())
     console.log('Current user token:', localStorage.getItem('token'))
     console.log('Current user data:', localStorage.getItem('user'))
 
@@ -215,8 +246,8 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
         type="date"
         {...register('reservationDate')}
         error={errors.reservationDate?.message}
-        min={dayjs().format('YYYY-MM-DD')}
-        max={dayjs().add(7, 'days').format('YYYY-MM-DD')}
+        min={dayjs().utc().add(1, 'day').format('YYYY-MM-DD')} // Minimum tomorrow (12-hour rule)
+        max={dayjs().utc().add(7, 'days').format('YYYY-MM-DD')} // Maximum 7 days ahead
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -239,6 +270,7 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
         <p>• Bookings must be made at least 12 hours in advance</p>
         <p>• Reservations can only be made up to 7 days in advance</p>
         <p>• Booking duration cannot exceed 8 hours</p>
+        <p>• Operating hours: 6:00 AM to 10:00 PM</p>
         <p>• Times will be normalized to hour boundaries (e.g., 10:30 → 10:00)</p>
       </div>
 
@@ -247,42 +279,21 @@ const BookingForm = ({ booking, onClose, isOpen }) => {
       {avail === "unavailable" && <p className="text-sm text-red-600">Selected time is already booked.</p>}
       {availError && <p className="text-sm text-amber-600">{availError}</p>}
 
-      <div className="flex justify-between pt-4">
-        <div className="flex space-x-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={debugAuth}
-            className="text-xs"
-          >
-            Debug Auth
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={testBooking}
-            className="text-xs"
-          >
-            Test Booking
-          </Button>
-        </div>
-        
-        <div className="flex space-x-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-          >
-            Cancel
-          </Button>
-          <LoadingButton
-            type="submit"
-            loading={createMutation.isPending || updateMutation.isPending}
-            disabled={avail === "unavailable"}
-          >
-            {booking ? 'Update' : 'Create'}
-          </LoadingButton>
-        </div>
+      <div className="flex justify-end space-x-3 pt-4">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
+        <LoadingButton
+          type="submit"
+          loading={createMutation.isPending || updateMutation.isPending}
+          disabled={avail === "unavailable"}
+        >
+          {booking ? 'Update' : 'Create'}
+        </LoadingButton>
       </div>
     </form>
   )
